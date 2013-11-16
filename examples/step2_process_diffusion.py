@@ -41,7 +41,7 @@ dti_proc = pe.Workflow(name="dti_proc")
 dti_proc.base_dir = os.path.abspath('dti_proc')
 dti_proc.connect([
                     (infosource,datasource,[('subject_id', 'subject_id')]),
-                    (datasource,preproc,[('dwi','inputnode.dti'),
+                    (datasource,preproc,[('dwi','inputnode.dwi'),
                                                ('bvals','inputnode.bvals'),
                                                ('bvecs','inputnode.bvecs'),
                                                ])

@@ -209,7 +209,7 @@ def include_gmsh_tensor_elements(mesh_file, tensor_file, mask_file, mask_thresho
 
 def create_conductivity_tensor_mesh_workflow(name="add_conductivity"):
     inputnode = pe.Node(interface=util.IdentityInterface(
-        fields=["dwi", "bvecs", "bvals", "struct"]), name="inputnode")
+        fields=["dwi", "bvecs", "bvals", "struct", "mesh_file"]), name="inputnode")
     outputnode = pe.Node(
         interface=util.IdentityInterface(fields=["mesh_file"]), name="outputnode")
 
@@ -240,7 +240,7 @@ def create_conductivity_tensor_mesh_workflow(name="add_conductivity"):
         interface=dipy.EstimateConductivity(), name='conductivity_mapping')
 
     add_tensors_to_mesh_interface = util.Function(
-        input_names=["in_file", "mesh_file" "mask_file", "mask_threshold"],
+        input_names=["mesh_file", "tensor_file", "mask_file", "mask_threshold"],
         output_names=["out_file"],
         function=include_gmsh_tensor_elements)
     add_conductivity_tensor_to_mesh = pe.Node(
@@ -300,11 +300,13 @@ def create_conductivity_tensor_mesh_workflow(name="add_conductivity"):
                        [("out_file", "in_file")])])
 
     workflow.connect(
-        [(conductivity_mapping, add_conductivity_tensor_to_mesh, [("out_file", "in_file")])])
+        [(conductivity_mapping, add_conductivity_tensor_to_mesh, [("out_file", "tensor_file")])])
     workflow.connect(
         [(nonlinear_warp, add_conductivity_tensor_to_mesh, [("warped_file", "mask_file")])])
     workflow.connect(
         [(inputnode, add_conductivity_tensor_to_mesh, [("mesh_file", "mesh_file")])])
+
+
     workflow.connect(
         [(add_conductivity_tensor_to_mesh, outputnode, [("out_file", "mesh_file")])])
     return workflow
