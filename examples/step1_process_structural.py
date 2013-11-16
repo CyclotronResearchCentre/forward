@@ -5,13 +5,20 @@ import nipype.interfaces.utility as util     # utility
 import nipype.pipeline.engine as pe          # pypeline engine
 from forward.struct import create_structural_mesh_workflow
 
+from forward.datasets import sample
+data_path = sample.data_path()
+
 data_dir = op.abspath(op.curdir)
+subjects_dir = op.join(data_path,"subjects")
+
+# Normally something like:
+# subjects_dir = os.environ["SUBJECTS_DIR"]
 subject_list = ['fsaverage']
 
 infosource = pe.Node(interface=util.IdentityInterface(
     fields=['subject_id', 'subjects_dir']), name="infosource")
 infosource.iterables = ('subject_id', subject_list)
-infosource.inputs.subjects_dir = os.environ["SUBJECTS_DIR"]
+infosource.inputs.subjects_dir = subjects_dir
 
 datasink = pe.Node(interface=nio.DataSink(),
                    name="datasink")

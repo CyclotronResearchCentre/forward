@@ -4,6 +4,11 @@ import nipype.interfaces.io as nio           # Data i/o
 import nipype.interfaces.utility as util     # utility
 import nipype.pipeline.engine as pe          # pypeline engine
 from forward.dti import create_conductivity_tensor_mesh_workflow
+import ipdb
+ipdb.set_trace()
+
+from forward.datasets import sample
+data_path = sample.data_path()
 
 data_dir = op.abspath(op.curdir)
 subject_list = ['TMS007']

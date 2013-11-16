@@ -1,5 +1,3 @@
-import ipdb
-
 def get_scalp_tris(in_file, original_T1, final_volume, mesh_file, mesh_id, electrode_name_file, basename="scalp_triangles_", session_number=5):
     import scipy.io as sio
     import os.path as op
@@ -109,14 +107,3 @@ def get_elements_near_points(points, mesh_filename, mesh_id, new_phys_ids,
     elapsed_time = time.time() - start_time
     print(elapsed_time)
     return out_file
-
-in_file = "/Users/erik/Dropbox/Analysis/TMSEEG/TMS007/TMS/SESS_CHAR_TMS007.mat"
-electrode_name_file = "/Users/erik/Dropbox/Analysis/TMSEEG/ElectrodeNames.txt"
-
-original_T1 = "/Users/erik/Dropbox/Analysis/TMSEEG/TMS007/20121204_134045t1mpragetms20121113s002a001.nii"
-final_volume = "/Users/erik/Dropbox/Analysis/TMSEEG/TMS007/orig_out_flirt.nii"
-#mesh_file = "/Users/erik/Dropbox/Analysis/TMSEEG/ForwardProblem/skinmsh.msh"
-mesh_file = "/Users/erik/Dropbox/Analysis/TMSEEG/ForwardProblem/TMS007_gmsh.msh"
-mesh_id = 1005  # Scalp
-
-get_scalp_tris(in_file, original_T1, final_volume, mesh_file, mesh_id, electrode_name_file)
