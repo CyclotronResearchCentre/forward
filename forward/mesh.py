@@ -93,3 +93,19 @@ def get_num_nodes_from_elm_type(elm_type):
 
     number_of_nodes = mapping[int(elm_type)-1][1]
     return number_of_nodes
+
+
+def get_num_nodes_elements(mesh_filename):
+    mesh_file = open(mesh_filename, 'r')
+    while True:
+        line = mesh_file.readline()
+
+        if line == '$Nodes\n':
+            line = mesh_file.readline()
+            number_of_nodes = int(line)
+
+        elif line == '$Elements\n':
+            line = mesh_file.readline()
+            number_of_elements = int(line)
+            break
+    return number_of_nodes, number_of_elements

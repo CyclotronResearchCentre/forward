@@ -5,5 +5,5 @@ setup(
     version='0.1dev',
     packages=['forward',],
     license='GNU GPL v2',
-    long_description=open('README.txt').read(),
+    long_description=open('README.md').read(),
 )

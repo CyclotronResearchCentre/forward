@@ -1,24 +1,7 @@
 import numpy as np
 import os.path as op
 import subprocess
-import scipy.io as sio
-import ipdb
-
-def get_num_nodes_elements(mesh_filename):
-    mesh_file = open(mesh_filename, 'r')
-    while True:
-        line = mesh_file.readline()
-
-        if line == '$Nodes\n':
-            line = mesh_file.readline()
-            number_of_nodes = int(line)
-
-        elif line == '$Elements\n':
-            line = mesh_file.readline()
-            number_of_elements = int(line)
-            break
-    return number_of_nodes, number_of_elements
-
+from forward.mesh import get_num_nodes_elements
 
 def check_potential(potential):
     sane = False
@@ -45,6 +28,11 @@ Define the conductivity tensor file to be incorportated. This should
 be the output of the diffusion preprocessing workflow.
 '''
 conductivity_tensor_file = "/Users/erik/Dropbox/Analysis/TMSEEG/ForwardProblem/dtifit__tensor_vreg_conductivity_elem.pos"
+
+'''
+Define the problem file
+'''
+problem_file = "../etc/eeg_forward.pro"
 
 
 '''
@@ -107,9 +95,8 @@ for src_idx, source_electrode in enumerate(src_electrodes):
     #
     # Run the forward model for the selected source electrode:
     #
-    subprocess.call(["getdp", "eeg_forward.pro", "-msh", mesh_file, "-bin",
-                     "-solve", "Electrostatics", "-ksp_type", "gmres", "-pc_type", "ilu",
-                     "-pc_factor_levels", "2", "-ksp_gmres_restart", "1000", "-ksp_rtol", "1e-10"])
+    subprocess.call(["getdp", problem_file, "-msh", mesh_file, "-bin",
+                     "-solve", "Electrostatics"])
 
     '''
 	Assess sanity check data to make sure potential at source / sink electrodes
@@ -150,7 +137,7 @@ for src_idx, source_electrode in enumerate(src_electrodes):
 
     #ipdb.set_trace()
     #sio.savemat("leadfield.mat", mdict)
-    np.save("leadfield.npy", L_e)
+    #np.save("leadfield.npy", L_e)
     print("Saved over leadfield matrix")
 
 ipdb.set_trace()
