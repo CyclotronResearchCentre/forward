@@ -302,11 +302,9 @@ def create_conductivity_tensor_mesh_workflow(name="add_conductivity"):
     workflow.connect(
         [(conductivity_mapping, add_conductivity_tensor_to_mesh, [("out_file", "in_file")])])
     workflow.connect(
-        [(nonlinear_warp, add_conductivity_tensor_to_mesh, [("warped_file", "fa_file")])])
+        [(nonlinear_warp, add_conductivity_tensor_to_mesh, [("warped_file", "mask_file")])])
     workflow.connect(
-        [(nonlinear_warp, add_conductivity_tensor_to_mesh, [("warped_file", "in_file")])])
-    workflow.connect(
-        [(inputnode, add_conductivity_tensor_to_mesh, [("mesh_file", "in_file")])])
+        [(inputnode, add_conductivity_tensor_to_mesh, [("mesh_file", "mesh_file")])])
     workflow.connect(
         [(add_conductivity_tensor_to_mesh, outputnode, [("out_file", "mesh_file")])])
     return workflow
