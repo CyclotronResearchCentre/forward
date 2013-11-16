@@ -1,11 +1,12 @@
 import os
+import os.path as op
 import nipype.interfaces.io as nio           # Data i/o
 import nipype.interfaces.utility as util     # utility
 import nipype.pipeline.engine as pe          # pypeline engine
 from forward.struct import create_structural_mesh_workflow
 
 data_dir = op.abspath(op.curdir)
-subject_list = ['TMS007']
+subject_list = ['fsaverage']
 
 infosource = pe.Node(interface=util.IdentityInterface(
     fields=['subject_id', 'subjects_dir']), name="infosource")
@@ -20,7 +21,7 @@ datasink.inputs.container = 'subject'
 preproc = create_structural_mesh_workflow()
 
 struct_proc = pe.Workflow(name="struct_proc")
-struct_proc.base_dir = os.path.abspath('struct_proc')
+struct_proc.base_dir = op.abspath('struct_proc')
 struct_proc.connect([
                     (infosource,preproc,[('subject_id', 'inputnode.subject_id')]),
                     (infosource,preproc,[('subjects_dir', 'inputnode.subjects_dir')]),
