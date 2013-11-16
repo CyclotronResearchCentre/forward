@@ -1098,7 +1098,6 @@ def skull_workflow(name):
     workflow.connect(
         [(skull_outside_csf, skull_tess, [("out_file", "inputnode.in_file")])])
 
-
     ## These are reversed on purpose!
     workflow.connect(
         [(skull_tess, decouple_skull_from_csf, [("outputnode.out_file", "outer_mesh")])])
@@ -1204,161 +1203,154 @@ def skin_workflow(name):
 End of Skin workflow
 '''
 
-data_dir = op.abspath(op.curdir)
-subject_list = ['TMS007']
 
-infosource = pe.Node(interface=util.IdentityInterface(
-    fields=['subject_id', 'subjects_dir']), name="infosource")
-infosource.iterables = ('subject_id', subject_list)
-infosource.inputs.subjects_dir = os.environ['SUBJECTS_DIR']
+'''
+Main structural preprocessing workflow
+'''
 
-datasink = pe.Node(interface=nio.DataSink(),
-                   name="datasink")
-datasink.inputs.base_directory = op.abspath('structural_datasink')
-datasink.inputs.container = 'subject'
+def create_structural_mesh_workflow(name="structural_mesh"):
+    workflow = pe.Workflow(name=name)
+    inputnode = pe.Node(
+        interface=util.IdentityInterface(fields=["subject_id", "subjects_dir"]), name="inputnode")
+    outputnode = pe.Node(
+        interface=util.IdentityInterface(fields=["volume_mesh", "surfaces", "volumes"]), name="outputnode")
 
-workflow = pe.Workflow(name='struct_preproc')
-workflow.base_dir = op.abspath('struct_preproc')
+    brain_wf = brain_workflow("brain")
+    ventricle_wf = ventricle_workflow("ventricle")
+    cerebellum_wf = cerebellum_workflow("cerebellum")
+    cerebrospinal_fluid_wf = cerebrospinal_fluid_workflow("cerebrospinal_fluid")
+    skull_wf = skull_workflow("skull")
+    skin_wf = skin_workflow("skin")
 
-brain_wf = brain_workflow("brain")
-ventricle_wf = ventricle_workflow("ventricle")
-cerebellum_wf = cerebellum_workflow("cerebellum")
-cerebrospinal_fluid_wf = cerebrospinal_fluid_workflow("cerebrospinal_fluid")
-skull_wf = skull_workflow("skull")
-skin_wf = skin_workflow("skin")
+    create_volume_mesh_script_interface = util.Function(input_names=["subject_id", "gm", "wm", "csf","skull", "skin", "cerebellum", "ventricles"],
+                                           output_names=["out_file"], function=volume_mesh_fn)
 
-create_volume_mesh_script_interface = util.Function(input_names=["subject_id", "gm", "wm", "csf","skull", "skin", "cerebellum", "ventricles"],
-                                       output_names=["out_file"], function=volume_mesh_fn)
+    create_volume_mesh_script = pe.Node(interface=create_volume_mesh_script_interface, name="create_volume_mesh_script")
+    run_volume_meshing = pe.Node(interface=Gmsh(), name="run_volume_meshing")
+    run_volume_meshing.inputs.mesh_generation_dimension = '3'
 
-create_volume_mesh_script = pe.Node(interface=create_volume_mesh_script_interface, name="create_volume_mesh_script")
-run_volume_meshing = pe.Node(interface=Gmsh(), name="run_volume_meshing")
-run_volume_meshing.inputs.mesh_generation_dimension = '3'
+    mergeSurfaces = pe.Node(
+        interface=util.Merge(7), name='mergeSurfaces')
+    mergeVolumes = pe.Node(
+        interface=util.Merge(7), name='mergeVolumes')
 
-mergeSurfaces = pe.Node(
-    interface=util.Merge(7), name='mergeSurfaces')
-mergeVolumes = pe.Node(
-    interface=util.Merge(7), name='mergeVolumes')
+    workflow.connect(
+        [(inputnode, brain_wf, [("subject_id", "inputnode.subject_id")])])
+    workflow.connect(
+        [(inputnode, brain_wf, [("subjects_dir", "inputnode.subjects_dir")])])
 
-workflow.connect([(infosource, datasink, [("subject_id", "subject_id")])])
+    workflow.connect(
+        [(brain_wf, ventricle_wf, [("outputnode.labels_fsl_space", "inputnode.segmentation")])])
+    workflow.connect(
+        [(brain_wf, ventricle_wf, [("outputnode.white_matter_volume", "inputnode.white_matter_volume")])])
+    workflow.connect(
+        [(brain_wf, ventricle_wf, [("outputnode.white_matter_surface", "inputnode.white_matter_surface")])])
+    workflow.connect(
+        [(brain_wf, ventricle_wf, [("outputnode.t1_fsl_space", "inputnode.t1_fsl_space")])])
 
-workflow.connect(
-    [(infosource, brain_wf, [("subject_id", "inputnode.subject_id")])])
-workflow.connect(
-    [(infosource, brain_wf, [("subjects_dir", "inputnode.subjects_dir")])])
-
-workflow.connect(
-    [(brain_wf, ventricle_wf, [("outputnode.labels_fsl_space", "inputnode.segmentation")])])
-workflow.connect(
-    [(brain_wf, ventricle_wf, [("outputnode.white_matter_volume", "inputnode.white_matter_volume")])])
-workflow.connect(
-    [(brain_wf, ventricle_wf, [("outputnode.white_matter_surface", "inputnode.white_matter_surface")])])
-workflow.connect(
-    [(brain_wf, ventricle_wf, [("outputnode.t1_fsl_space", "inputnode.t1_fsl_space")])])
-
-workflow.connect(
-    [(brain_wf, cerebellum_wf, [("outputnode.labels_fsl_space", "inputnode.segmentation")])])
-workflow.connect(
-    [(brain_wf, cerebellum_wf, [("outputnode.gray_matter_volume", "inputnode.gray_matter_volume")])])
-workflow.connect(
-    [(brain_wf, cerebellum_wf, [("outputnode.gray_matter_surface", "inputnode.gray_matter_surface")])])
-workflow.connect(
-    [(brain_wf, cerebellum_wf, [("outputnode.t1_fsl_space", "inputnode.t1_fsl_space")])])
+    workflow.connect(
+        [(brain_wf, cerebellum_wf, [("outputnode.labels_fsl_space", "inputnode.segmentation")])])
+    workflow.connect(
+        [(brain_wf, cerebellum_wf, [("outputnode.gray_matter_volume", "inputnode.gray_matter_volume")])])
+    workflow.connect(
+        [(brain_wf, cerebellum_wf, [("outputnode.gray_matter_surface", "inputnode.gray_matter_surface")])])
+    workflow.connect(
+        [(brain_wf, cerebellum_wf, [("outputnode.t1_fsl_space", "inputnode.t1_fsl_space")])])
 
 
-workflow.connect(
-    [(brain_wf, cerebrospinal_fluid_wf, [("outputnode.t1_fsl_space", "inputnode.t1_fsl_space")])])
-workflow.connect(
-    [(brain_wf, cerebrospinal_fluid_wf, [("outputnode.nu", "inputnode.nu")])])
-workflow.connect(
-    [(brain_wf, cerebrospinal_fluid_wf, [("outputnode.Conform2MNI", "inputnode.Conform2MNI")])])
-workflow.connect(
-    [(brain_wf, cerebrospinal_fluid_wf, [("outputnode.gray_matter_surface", "inputnode.gray_matter_surface")])])
-workflow.connect(
-    [(cerebellum_wf, cerebrospinal_fluid_wf, [("outputnode.cerebellum_volume", "inputnode.cerebellum_volume")])])
-workflow.connect(
-    [(cerebellum_wf, cerebrospinal_fluid_wf, [("outputnode.cerebellum_surface", "inputnode.cerebellum_surface")])])
-workflow.connect(
-    [(cerebellum_wf, cerebrospinal_fluid_wf, [("outputnode.gray_matter_large", "inputnode.gray_matter_large")])])
+    workflow.connect(
+        [(brain_wf, cerebrospinal_fluid_wf, [("outputnode.t1_fsl_space", "inputnode.t1_fsl_space")])])
+    workflow.connect(
+        [(brain_wf, cerebrospinal_fluid_wf, [("outputnode.nu", "inputnode.nu")])])
+    workflow.connect(
+        [(brain_wf, cerebrospinal_fluid_wf, [("outputnode.Conform2MNI", "inputnode.Conform2MNI")])])
+    workflow.connect(
+        [(brain_wf, cerebrospinal_fluid_wf, [("outputnode.gray_matter_surface", "inputnode.gray_matter_surface")])])
+    workflow.connect(
+        [(cerebellum_wf, cerebrospinal_fluid_wf, [("outputnode.cerebellum_volume", "inputnode.cerebellum_volume")])])
+    workflow.connect(
+        [(cerebellum_wf, cerebrospinal_fluid_wf, [("outputnode.cerebellum_surface", "inputnode.cerebellum_surface")])])
+    workflow.connect(
+        [(cerebellum_wf, cerebrospinal_fluid_wf, [("outputnode.gray_matter_large", "inputnode.gray_matter_large")])])
 
-workflow.connect(
-    [(brain_wf, skull_wf, [("outputnode.t1_fsl_space", "inputnode.t1_fsl_space")])])
-workflow.connect(
-    [(brain_wf, skull_wf, [("outputnode.Conform2MNI", "inputnode.Conform2MNI")])])
-workflow.connect(
-    [(cerebrospinal_fluid_wf, skull_wf, [("outputnode.csf_volume", "inputnode.csf_volume")])])
-workflow.connect(
-    [(cerebrospinal_fluid_wf, skull_wf, [("outputnode.csf_surface", "inputnode.csf_surface")])])
-workflow.connect(
-    [(cerebrospinal_fluid_wf, skull_wf, [("outputnode.NU_bet_meshfile", "inputnode.NU_bet_meshfile")])])
-
-
-workflow.connect(
-    [(brain_wf, skin_wf, [("outputnode.t1_fsl_space", "inputnode.t1_fsl_space")])])
-workflow.connect(
-    [(brain_wf, skin_wf, [("outputnode.Conform2MNI", "inputnode.Conform2MNI")])])
-workflow.connect(
-    [(skull_wf, skin_wf, [("outputnode.skull_volume", "inputnode.skull_volume")])])
-workflow.connect(
-    [(skull_wf, skin_wf, [("outputnode.skull_surface", "inputnode.skull_surface")])])
-workflow.connect(
-    [(cerebrospinal_fluid_wf, skin_wf, [("outputnode.NU_bet_meshfile", "inputnode.NU_bet_meshfile")])])
-
-workflow.connect(
-    [(brain_wf, mergeSurfaces, [("outputnode.gray_matter_surface", "in1")])])
-workflow.connect(
-    [(brain_wf, mergeSurfaces, [("outputnode.white_matter_surface", "in2")])])
-workflow.connect(
-    [(ventricle_wf, mergeSurfaces, [("outputnode.ventricle_surface", "in3")])])
-workflow.connect(
-    [(cerebellum_wf, mergeSurfaces, [("outputnode.cerebellum_surface", "in4")])])
-workflow.connect(
-    [(cerebrospinal_fluid_wf, mergeSurfaces, [("outputnode.csf_surface", "in5")])])
-workflow.connect(
-    [(skull_wf, mergeSurfaces, [("outputnode.skull_surface", "in6")])])
-workflow.connect(
-    [(skin_wf, mergeSurfaces, [("outputnode.skin_surface", "in7")])])
+    workflow.connect(
+        [(brain_wf, skull_wf, [("outputnode.t1_fsl_space", "inputnode.t1_fsl_space")])])
+    workflow.connect(
+        [(brain_wf, skull_wf, [("outputnode.Conform2MNI", "inputnode.Conform2MNI")])])
+    workflow.connect(
+        [(cerebrospinal_fluid_wf, skull_wf, [("outputnode.csf_volume", "inputnode.csf_volume")])])
+    workflow.connect(
+        [(cerebrospinal_fluid_wf, skull_wf, [("outputnode.csf_surface", "inputnode.csf_surface")])])
+    workflow.connect(
+        [(cerebrospinal_fluid_wf, skull_wf, [("outputnode.NU_bet_meshfile", "inputnode.NU_bet_meshfile")])])
 
 
-workflow.connect(
-    [(infosource, create_volume_mesh_script, [("subject_id", "subject_id")])])
-workflow.connect(
-    [(brain_wf, create_volume_mesh_script, [("outputnode.gray_matter_surface", "gm")])])
-workflow.connect(
-    [(brain_wf, create_volume_mesh_script, [("outputnode.white_matter_surface", "wm")])])
-workflow.connect(
-    [(ventricle_wf, create_volume_mesh_script, [("outputnode.ventricle_surface", "ventricles")])])
-workflow.connect(
-    [(cerebellum_wf, create_volume_mesh_script, [("outputnode.cerebellum_surface", "cerebellum")])])
-workflow.connect(
-    [(cerebrospinal_fluid_wf, create_volume_mesh_script, [("outputnode.csf_surface", "csf")])])
-workflow.connect(
-    [(skull_wf, create_volume_mesh_script, [("outputnode.skull_surface", "skull")])])
-workflow.connect(
-    [(skin_wf, create_volume_mesh_script, [("outputnode.skin_surface", "skin")])])
+    workflow.connect(
+        [(brain_wf, skin_wf, [("outputnode.t1_fsl_space", "inputnode.t1_fsl_space")])])
+    workflow.connect(
+        [(brain_wf, skin_wf, [("outputnode.Conform2MNI", "inputnode.Conform2MNI")])])
+    workflow.connect(
+        [(skull_wf, skin_wf, [("outputnode.skull_volume", "inputnode.skull_volume")])])
+    workflow.connect(
+        [(skull_wf, skin_wf, [("outputnode.skull_surface", "inputnode.skull_surface")])])
+    workflow.connect(
+        [(cerebrospinal_fluid_wf, skin_wf, [("outputnode.NU_bet_meshfile", "inputnode.NU_bet_meshfile")])])
 
-workflow.connect(
-    [(create_volume_mesh_script, run_volume_meshing, [("out_file", "in_files")])])
+    workflow.connect(
+        [(brain_wf, mergeSurfaces, [("outputnode.gray_matter_surface", "in1")])])
+    workflow.connect(
+        [(brain_wf, mergeSurfaces, [("outputnode.white_matter_surface", "in2")])])
+    workflow.connect(
+        [(ventricle_wf, mergeSurfaces, [("outputnode.ventricle_surface", "in3")])])
+    workflow.connect(
+        [(cerebellum_wf, mergeSurfaces, [("outputnode.cerebellum_surface", "in4")])])
+    workflow.connect(
+        [(cerebrospinal_fluid_wf, mergeSurfaces, [("outputnode.csf_surface", "in5")])])
+    workflow.connect(
+        [(skull_wf, mergeSurfaces, [("outputnode.skull_surface", "in6")])])
+    workflow.connect(
+        [(skin_wf, mergeSurfaces, [("outputnode.skin_surface", "in7")])])
 
-workflow.connect(
-    [(brain_wf, mergeVolumes, [("outputnode.gray_matter_volume", "in1")])])
-workflow.connect(
-    [(brain_wf, mergeVolumes, [("outputnode.white_matter_volume", "in2")])])
-workflow.connect(
-    [(ventricle_wf, mergeVolumes, [("outputnode.ventricle_volume", "in3")])])
-workflow.connect(
-    [(cerebellum_wf, mergeVolumes, [("outputnode.cerebellum_volume", "in4")])])
-workflow.connect(
-    [(cerebrospinal_fluid_wf, mergeVolumes, [("outputnode.csf_volume", "in5")])])
-workflow.connect(
-    [(skull_wf, mergeVolumes, [("outputnode.skull_volume", "in6")])])
-workflow.connect(
-    [(skin_wf, mergeVolumes, [("outputnode.skin_volume", "in7")])])
+    workflow.connect(
+        [(inputnode, create_volume_mesh_script, [("subject_id", "subject_id")])])
+    workflow.connect(
+        [(brain_wf, create_volume_mesh_script, [("outputnode.gray_matter_surface", "gm")])])
+    workflow.connect(
+        [(brain_wf, create_volume_mesh_script, [("outputnode.white_matter_surface", "wm")])])
+    workflow.connect(
+        [(ventricle_wf, create_volume_mesh_script, [("outputnode.ventricle_surface", "ventricles")])])
+    workflow.connect(
+        [(cerebellum_wf, create_volume_mesh_script, [("outputnode.cerebellum_surface", "cerebellum")])])
+    workflow.connect(
+        [(cerebrospinal_fluid_wf, create_volume_mesh_script, [("outputnode.csf_surface", "csf")])])
+    workflow.connect(
+        [(skull_wf, create_volume_mesh_script, [("outputnode.skull_surface", "skull")])])
+    workflow.connect(
+        [(skin_wf, create_volume_mesh_script, [("outputnode.skin_surface", "skin")])])
 
+    workflow.connect(
+        [(create_volume_mesh_script, run_volume_meshing, [("out_file", "in_files")])])
 
-workflow.connect([(mergeSurfaces, datasink, [("out", "@surfaces")])])
-workflow.connect([(mergeVolumes, datasink, [("out", "@volumes")])])
-workflow.connect([(run_volume_meshing, datasink, [("mesh_file", "@volume_mesh")])])
+    workflow.connect(
+        [(brain_wf, mergeVolumes, [("outputnode.gray_matter_volume", "in1")])])
+    workflow.connect(
+        [(brain_wf, mergeVolumes, [("outputnode.white_matter_volume", "in2")])])
+    workflow.connect(
+        [(ventricle_wf, mergeVolumes, [("outputnode.ventricle_volume", "in3")])])
+    workflow.connect(
+        [(cerebellum_wf, mergeVolumes, [("outputnode.cerebellum_volume", "in4")])])
+    workflow.connect(
+        [(cerebrospinal_fluid_wf, mergeVolumes, [("outputnode.csf_volume", "in5")])])
+    workflow.connect(
+        [(skull_wf, mergeVolumes, [("outputnode.skull_volume", "in6")])])
+    workflow.connect(
+        [(skin_wf, mergeVolumes, [("outputnode.skin_volume", "in7")])])
 
-if __name__ == '__main__':
-    workflow.write_graph()
-    workflow.run(plugin='MultiProc', plugin_args={'n_procs' : 4})
+    workflow.connect([(mergeSurfaces, outputnode, [("out", "surfaces")])])
+    workflow.connect([(mergeVolumes, outputnode, [("out", "volumes")])])
+    workflow.connect([(run_volume_meshing, outputnode, [("mesh_file", "volume_mesh")])])
+    return workflow
+
+'''
+End of main structural preprocessing workflow
+'''
