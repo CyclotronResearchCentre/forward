@@ -149,11 +149,11 @@ def include_gmsh_tensor_elements(mesh_file, tensor_file, mask_file, mask_thresho
     # Create the output mesh file
     path, name, ext = split_filename(mesh_file)
     out_file = op.abspath(name + "_cond.msh")
-    print('Copying current mesh file to %s' % out_file)
+    iflogger.info('Copying current mesh file to %s' % out_file)
     shutil.copyfile(mesh_file, out_file)
 
     f = open(out_file,'a') #Append to the end of the file
-    print('Appending Conductivity tensors to %s' % out_file)
+    iflogger.info('Appending Conductivity tensors to %s' % out_file)
 
     # Write the tag information to the file:
     num_polygons = len(mesh_data)
@@ -173,7 +173,7 @@ def include_gmsh_tensor_elements(mesh_file, tensor_file, mask_file, mask_thresho
 
     # Get the centroid of all white matter elements
     # Find out which voxel they lie inside
-    print("Getting tensor for each element")
+    iflogger.info("Getting tensor for each element")
     #ipdb.set_trace()
     nonzero = 0
     elem_list = []
@@ -189,7 +189,7 @@ def include_gmsh_tensor_elements(mesh_file, tensor_file, mask_file, mask_thresho
                 poly["tensor_triform"][3], poly["tensor_triform"][4], poly["tensor_triform"][5]))
             elem_list.append(elementdata_str)
             nonzero += 1
-        print("%3.3f%%" % (float(idx)/num_polygons*100.0))
+        iflogger.info("%3.3f%%" % (float(idx)/num_polygons*100.0))
 
     f.write('%d\n' % nonzero) #Num nonzero field components
     for elementdata_str in elem_list:
@@ -198,7 +198,7 @@ def include_gmsh_tensor_elements(mesh_file, tensor_file, mask_file, mask_thresho
     f.write('$EndElementData\n')
     f.close()
 
-    print("Finished writing to %s" % out_file)
+    iflogger.info("Finished writing to %s" % out_file)
     ## Nifti from gmsh
     # Create empty nifti volume (e.g. 256 conformed, 1mm isotropic)
     # Find centroid of all elements

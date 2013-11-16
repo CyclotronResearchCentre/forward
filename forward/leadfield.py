@@ -48,7 +48,6 @@ def create_forward_model_workflow():
             electrode_namelist.remove(marker)
         except ValueError:
             continue
-    n_electrodes = len(electrode_namelist)
     ground_idx = electrode_namelist.index(ground_electrode)
     electrode_namelist.remove(ground_electrode)
     src_electrodes = electrode_namelist
@@ -70,7 +69,7 @@ def create_forward_model_workflow():
 
     for src_idx, source_electrode in enumerate(src_electrodes):
 
-        print("Index %d of %d " % (src_idx, len(src_electrodes)))
+        print("Index %d of %d " % (src_idx, M))
         print("Electrode %s" % source_electrode)
 
         '''

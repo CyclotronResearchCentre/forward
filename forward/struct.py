@@ -7,12 +7,14 @@ import nipype.interfaces.meshfix as mf
 from nipype.interfaces.gmsh import Gmsh
 import os
 import os.path as op                     # system functions
-import ipdb
-from nipype.interfaces.meshfix import (iter_push_out_fn,
+from forward.mesh import (iter_push_out_fn,
                                        iter_decoupling_fn, iter_remove_throats_fn, remove_spikes_fn,
                                        decouple_surfaces_fn, mask_from_labels_fn,
                                        decouple_ventricles_fn, decouple_input_from_GM_fn,
                                        decouple_outout_cutin_fn)
+
+from nipype import logging
+iflogger = logging.getLogger('interface')
 
 fsl.FSLCommand.set_default_output_type('NIFTI')
 

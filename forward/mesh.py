@@ -1,8 +1,8 @@
 import numpy as np
 
 def read_mesh(mesh_filename, elements_to_consider):
-    print("Reading mesh file: %s" % mesh_filename)
-    print("Mesh ids to consider: %s" % elements_to_consider)
+    iflogger.info("Reading mesh file: %s" % mesh_filename)
+    iflogger.info("Mesh ids to consider: %s" % elements_to_consider)
 
     mesh_file = open(mesh_filename, 'r')
     while True:
@@ -10,7 +10,7 @@ def read_mesh(mesh_filename, elements_to_consider):
         if '$Nodes' in line:
             line = mesh_file.readline()
             number_of_nodes = int(line)
-            print("%d nodes in mesh" % number_of_nodes)
+            iflogger.info("%d nodes in mesh" % number_of_nodes)
             vertex_list = []
 
             for i in xrange(0, number_of_nodes):
@@ -19,12 +19,12 @@ def read_mesh(mesh_filename, elements_to_consider):
                 vertex_list.append(node_data)
 
             vertex_list = np.array((vertex_list)).astype(float)
-            print("Done reading nodes")
+            iflogger.info("Done reading nodes")
 
         elif '$Elements' in line:
             line = mesh_file.readline()
             number_of_elements = int(line)
-            print("%d elements in mesh" % number_of_elements)
+            iflogger.info("%d elements in mesh" % number_of_elements)
             polygons = []
             for i in xrange(0, number_of_elements):
                 # -- If all elements were quads, each line has 10 numbers.
@@ -36,13 +36,13 @@ def read_mesh(mesh_filename, elements_to_consider):
 
             polygons = np.array((polygons))
             poly_indices = polygons[:, -3:]
-            print("Done reading elements")
+            iflogger.info("Done reading elements")
             break
     
     # Loop through and assign points to each polygon, save as a dictionary
     mesh_data = []
     num_polygons = len(polygons)
-    print("%d polygons found with mesh IDs: %s" % (num_polygons, elements_to_consider))
+    iflogger.info("%d polygons found with mesh IDs: %s" % (num_polygons, elements_to_consider))
     for idx, polygon in enumerate(polygons):
         poly_data = {}
         poly_data["element_id"] = int(polygon[0])
@@ -52,7 +52,7 @@ def read_mesh(mesh_filename, elements_to_consider):
         poly_data["centroid"] = np.mean(poly_data["node_locations"],0)
 
         mesh_data.append(poly_data)
-        print("%3.3f%%" % (float(idx)/num_polygons*100.0))
+        iflogger.info("%3.3f%%" % (float(idx)/num_polygons*100.0))
 
     return mesh_data
 
@@ -109,3 +109,306 @@ def get_num_nodes_elements(mesh_filename):
             number_of_elements = int(line)
             break
     return number_of_nodes, number_of_elements
+
+
+def mask_from_labels_fn(in_file, label_values):
+    import os.path as op
+    import numpy as np
+    import nibabel as nb
+    from nipype.utils.filemanip import split_filename
+
+    _, name, ext = split_filename(in_file)
+    in_file = nb.load(in_file)
+    in_data = in_file.get_data()
+    new_data = np.zeros(in_data.shape)
+    for label in label_values:
+        new_data[in_data == label] = 1
+
+    new_image = nb.Nifti1Image(data=new_data,
+                               affine=in_file.get_affine(), header=in_file.get_header())
+    out_file = op.abspath(name + "_mask" + ext)
+    nb.save(new_image, out_file)
+    return out_file
+
+
+def check_intersecting_fn(mesh1, mesh2):
+    import subprocess
+    from subprocess import CalledProcessError
+    intersecting = False
+    args = ['meshfix']
+    args.append(mesh1)
+    args.append(mesh2)
+    args.extend(["--shells", "2", "--no-clean", "--intersect"])
+
+    try:
+        output = subprocess.check_output(args)
+        intersecting = True
+    except subprocess.CalledProcessError:
+        # No intersections
+        intersecting = False
+    return intersecting
+
+
+def cut_inner_fn(outer_mesh, inner_mesh):
+    import subprocess
+    from subprocess import CalledProcessError
+    from nipype.utils.filemanip import split_filename
+    import os.path as op
+    path, name, ext = split_filename(outer_mesh)
+    cut_mesh = op.join(path, name + "_CI.off")
+    args = ['meshfix']
+    args.extend([outer_mesh, inner_mesh])
+    args.extend(["-a", "2.0", "--shells", "2", "--cut-inner", "0"])
+    args.extend(["-o", cut_mesh])
+    try:
+        subprocess.call(args)
+    except:
+        print("Something went wrong")
+    return cut_mesh
+
+
+def cut_outer_fn(inner_mesh, outer_mesh):
+    import subprocess
+    from subprocess import CalledProcessError
+    from nipype.utils.filemanip import split_filename
+    import os.path as op
+    path, name, ext = split_filename(inner_mesh)
+    cut_mesh = op.join(path, name + "_CO.off")
+    args = ['meshfix']
+    args.extend([inner_mesh, outer_mesh])
+    args.extend(["-a", "2.0", "--shells", "2", "--cut-outer", "0"])
+    args.extend(["-o", cut_mesh])
+    try:
+        subprocess.call(args)
+    except:
+        print("Something went wrong")
+    return cut_mesh
+
+
+def decouple_outout_fn(outer_mesh, inner_mesh):
+    import subprocess
+    from subprocess import CalledProcessError
+    from nipype.utils.filemanip import split_filename
+    import os.path as op
+    path, name, ext = split_filename(outer_mesh)
+    cut_mesh = op.join(path, name + "_DOO.off")
+    args = ['meshfix']
+    args.extend([outer_mesh, inner_mesh])
+    args.extend(["-a", "2.0", "--shells", "2", "--decouple-outout", "0"])
+    args.extend(["-o", cut_mesh])
+    try:
+        subprocess.call(args)
+    except:
+        print("Something went wrong")
+    return cut_mesh
+
+
+def decouple_inin_fn(inner_mesh, outer_mesh):
+    import subprocess
+    from subprocess import CalledProcessError
+    from nipype.utils.filemanip import split_filename
+    import os.path as op
+    path, name, ext = split_filename(inner_mesh)
+    cut_mesh = op.join(path, name + "_DII.off")
+    args = ['meshfix']
+    args.extend([inner_mesh, outer_mesh])
+    args.extend(["-a", "2.0", "--shells", "2", "--decouple-inin", "0"])
+    args.extend(["-o", cut_mesh])
+    try:
+        subprocess.call(args)
+    except:
+        print("Something went wrong")
+    return cut_mesh
+
+def decouple_outin_fn(inner_mesh, outer_mesh):
+    import subprocess
+    from subprocess import CalledProcessError
+    from nipype.utils.filemanip import split_filename
+    import os.path as op
+    path, name, ext = split_filename(inner_mesh)
+    cut_mesh = op.join(path, name + "_DOI.off")
+    args = ['meshfix']
+    args.extend([inner_mesh, outer_mesh])
+    args.extend(["-a", "2.0", "--shells", "2", "--decouple-outin", "0"])
+    args.extend(["-o", cut_mesh])
+    try:
+        subprocess.call(args)
+    except:
+        print("Something went wrong")
+    return cut_mesh
+
+
+def clean_mesh_fn(mesh_file):
+    import subprocess
+    from subprocess import CalledProcessError
+    from nipype.utils.filemanip import split_filename
+    import os.path as op
+    path, name, ext = split_filename(mesh_file)
+    cleaned1 = op.join(path, name + "_c1.off")
+    cleaned2 = op.join(path, name + "_c2.off")
+    args1 = ['meshfix']
+    args1.append(mesh_file)
+    args1.extend(["-a", "2.0", "-u", "1", "-q"])
+    args1.extend(["-o", cleaned1])
+
+    args2 = ['meshfix']
+    args2.append(cleaned1)
+    args2.extend(["-a", "2.0", "-q"])
+    args2.extend(["-o", cleaned2])
+    try:
+        subprocess.call(args1)
+        subprocess.call(args2)
+    except:
+        print("Something went wrong")
+    return cleaned2
+
+
+def decouple_and_cut_inner_fn(outer_mesh, inner_mesh):
+    outer_mesh = decouple_outout_fn(outer_mesh, inner_mesh)
+    outer_mesh = cut_inner_fn(outer_mesh, inner_mesh)
+    return outer_mesh
+
+
+def decouple_surfaces_fn(outer_mesh, inner_mesh):
+    # This function loops until outer_mesh and inner_mesh
+    # have no intersections.
+    # At each iteration it pushes outer_mesh out, cuts parts of
+    # the inner_mesh away, and cleans the mesh.
+    # The pushing out is also iterative.
+    #
+    from nipype.interfaces.meshfix import (
+        iter_push_out_fn, check_intersecting_fn,
+        cut_inner_fn, clean_mesh_fn)
+
+    for i in range(0, 2):
+        intersections = check_intersecting_fn(outer_mesh, inner_mesh)
+        if intersections:
+            outer_mesh = iter_push_out_fn(outer_mesh, inner_mesh, iterations=3)
+            outer_mesh = cut_inner_fn(outer_mesh, inner_mesh)
+            outer_mesh = clean_mesh_fn(outer_mesh)
+        else:
+            break
+    return outer_mesh
+
+
+def iter_remove_throats_fn(outer_mesh, inner_mesh, iterations=5):
+    # This function loops until there are no
+    # intersections between two surfaces.
+    # It cuts away the inner surface and
+    # uses decouple_outout:
+    #
+    # "Treat 1st file as outer, 2nd file as inner component.
+    ## "Resolve overlaps by moving outers triangles outwards."
+    ## "Constrain the min distance between the components > d."
+    #
+    # and cut-inner:
+    #
+    ## "Remove triangles of 1st that are inside  of the 2nd shell."
+    ## "Dilate 2nd by d; Fill holes and keep only 1st afterwards."
+    #
+    # at each iteration.
+    from nipype.interfaces.meshfix import (check_intersecting_fn,
+                                           decouple_and_cut_inner_fn)
+    for i in range(0, iterations):
+        intersections = check_intersecting_fn(outer_mesh, inner_mesh)
+        if intersections:
+            outer_mesh = decouple_and_cut_inner_fn(outer_mesh, inner_mesh)
+        else:
+            break
+    return outer_mesh
+
+
+def iter_push_out_fn(outer_mesh, inner_mesh, iterations=5):
+    # This function loops until there are no
+    # intersections between two surfaces.
+    # It cuts away the inner surface and
+    # uses decouple_outout:
+    #
+    # "Treat 1st file as outer, 2nd file as inner component.
+    ## "Resolve overlaps by moving outers triangles outwards."
+    ## "Constrain the min distance between the components > d."
+    #
+    # at each iteration.
+    from nipype.interfaces.meshfix import (check_intersecting_fn,
+                                           decouple_outout_fn)
+    for i in range(0, iterations):
+        intersecting = check_intersecting_fn(outer_mesh, inner_mesh)
+        if intersecting:
+            outer_mesh = decouple_outout_fn(outer_mesh, inner_mesh)
+        else:
+            break
+    return outer_mesh
+
+
+def iter_decoupling_fn(outer_mesh, inner_mesh):
+    from nipype.interfaces.meshfix import (check_intersecting_fn,
+                                           cut_inner_fn, decouple_outout_fn, clean_mesh_fn)
+
+    intersections = check_intersecting_fn(outer_mesh, inner_mesh)
+    while(intersections):
+        for i in range(0, 3):
+            intersections = check_intersecting_fn(outer_mesh, inner_mesh)
+            if intersections:
+                outer_mesh = decouple_outout_fn(outer_mesh, inner_mesh)
+            else:
+                break
+            outer_mesh = cut_inner_fn(outer_mesh, inner_mesh)
+            outer_mesh = clean_mesh_fn(outer_mesh)
+    return outer_mesh
+
+
+def remove_spikes_fn(outer_mesh, inner_mesh):
+    from nipype.interfaces.meshfix import (check_intersecting_fn,
+                                           cut_outer_fn, decouple_inin_fn, clean_mesh_fn)
+
+    intersections = check_intersecting_fn(outer_mesh, inner_mesh)
+    if intersections:
+        inner_mesh = cut_outer_fn(inner_mesh, outer_mesh)
+        inner_mesh = clean_mesh_fn(inner_mesh)
+
+        for i in xrange(0, 3):
+            intersections = check_intersecting_fn(outer_mesh, inner_mesh)
+            if intersections:
+                inner_mesh = decouple_inin_fn(inner_mesh, outer_mesh)
+                inner_mesh = clean_mesh_fn(inner_mesh)
+            else:
+                break
+    return inner_mesh
+
+
+def decouple_ventricles_fn(ventricles, white_matter):
+    from nipype.interfaces.meshfix import (check_intersecting_fn,
+                                           cut_outer_fn, decouple_inin_fn, clean_mesh_fn)
+
+    intersections = check_intersecting_fn(white_matter, ventricles)
+    while(intersections):
+        ventricles = decouple_inin_fn(ventricles, white_matter)
+        ventricles = cut_outer_fn(ventricles, white_matter)
+        ventricles = clean_mesh_fn(ventricles)
+        intersections = check_intersecting_fn(white_matter, ventricles)
+    return ventricles
+
+def decouple_input_from_GM_fn(mesh_file, gray_matter):
+    from nipype.interfaces.meshfix import (check_intersecting_fn,
+                                           cut_outer_fn, decouple_outin_fn, clean_mesh_fn)
+
+    intersections = check_intersecting_fn(gray_matter, mesh_file)
+    while(intersections):
+        mesh_file = decouple_outin_fn(mesh_file, gray_matter)
+        mesh_file = cut_outer_fn(mesh_file, gray_matter)
+        mesh_file = clean_mesh_fn(mesh_file)
+        intersections = check_intersecting_fn(gray_matter, mesh_file)
+    return mesh_file
+
+
+def decouple_outout_cutin_fn(outer_mesh, inner_mesh):
+    from nipype.interfaces.meshfix import (check_intersecting_fn,
+                                           cut_inner_fn, decouple_outout_fn, clean_mesh_fn)
+
+    intersections = check_intersecting_fn(outer_mesh, inner_mesh)
+    while(intersections):
+        outer_mesh = decouple_outout_fn(outer_mesh, inner_mesh)
+        outer_mesh = cut_inner_fn(outer_mesh, inner_mesh)
+        outer_mesh = clean_mesh_fn(outer_mesh)
+        intersections = check_intersecting_fn(outer_mesh, inner_mesh)
+    return outer_mesh
