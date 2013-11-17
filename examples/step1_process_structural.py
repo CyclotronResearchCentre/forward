@@ -8,7 +8,6 @@ from forward.struct import create_structural_mesh_workflow
 from forward.datasets import sample
 data_path = sample.data_path()
 
-data_dir = data_path
 subjects_dir = op.join(data_path,"subjects")
 
 # Normally something like:
@@ -37,7 +36,8 @@ struct_proc.connect([
 struct_proc.connect([
                     (preproc,datasink,[('outputnode.volumes', 'volumes')]),
                     (preproc,datasink,[('outputnode.surfaces', 'surfaces')]),
-                    (preproc,datasink,[('outputnode.surfaces', 'volume_mesh')]),
+                    (preproc,datasink,[('outputnode.volume_mesh', 'volume_mesh')]),
+                    (preproc,datasink,[('outputnode.t1_fsl_space', 't1_fsl_space')]),
                 ])
 
 struct_proc.connect([(infosource, datasink, [("subject_id", "subject_id")])])

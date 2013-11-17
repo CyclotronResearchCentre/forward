@@ -10,7 +10,6 @@ ipdb.set_trace()
 from forward.datasets import sample
 data_path = sample.data_path()
 
-data_dir = op.abspath(op.curdir)
 subject_list = ['TMS007']
 
 infosource = pe.Node(interface=util.IdentityInterface(
@@ -19,7 +18,9 @@ infosource.iterables = ('subject_id', subject_list)
 
 info = dict(dwi=[['subject_id', 'DWI_1000']],
             bvecs=[['subject_id', 'grad_1000']],
-            bvals=[['subject_id', 'bval_1000']])
+            bvals=[['subject_id', 'bval_1000']],
+            mesh_file=[['subject_id', 'subject_id']],
+            struct=[['subject_id', 'orig']])
 
 datasource = pe.Node(interface=nio.DataGrabber(infields=['subject_id'],
                                                outfields=info.keys()),
@@ -27,15 +28,14 @@ datasource = pe.Node(interface=nio.DataGrabber(infields=['subject_id'],
 
 datasource.inputs.sort_filelist = True
 datasource.inputs.template = "%s/%s"
-datasource.inputs.base_directory = data_dir
+datasource.inputs.base_directory = data_path
 datasource.inputs.field_template = dict(
-    dwi='%s/*%s.nii', bvecs='%s/*%s', bvals='%s/*%s')
+    dwi='%s/*%s.nii.gz', bvecs='%s/*%s', bvals='%s/*%s',
+    mesh_file='../structural_datasink/subject/volume_mesh/*%s/%s*.msh',
+    struct='../structural_datasink/subject/t1_fsl_space/*%s/*%s*.nii')
 datasource.inputs.template_args = info
 
 preproc = create_conductivity_tensor_mesh_workflow()
-
-preproc.inputs.inputnode.mesh_file = "TMS007_running.msh"
-preproc.inputs.inputnode.struct = "/Users/erik/Dropbox/Analysis/TMSEEG/TMS007/orig_out_flirt.nii"
 
 datasink = pe.Node(interface=nio.DataSink(),
                    name="datasink")
@@ -49,6 +49,8 @@ dti_proc.connect([
                     (datasource,preproc,[('dwi','inputnode.dwi'),
                                                ('bvals','inputnode.bvals'),
                                                ('bvecs','inputnode.bvecs'),
+                                               ('mesh_file','inputnode.mesh_file'),
+                                               ('struct','inputnode.struct'),
                                                ])
                 ])
 dti_proc.connect([(preproc, datasink, [("outputnode.mesh_file", "mesh_file")])])
@@ -57,3 +59,4 @@ dti_proc.connect([(infosource, datasink, [("subject_id", "subject_id")])])
 if __name__ == '__main__':
     dti_proc.write_graph()
     #dti_proc.run()
+    dti_proc.run(plugin='MultiProc', plugin_args={'n_procs' : 4})

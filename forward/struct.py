@@ -617,8 +617,8 @@ def brain_workflow(name):
     finetune_gm.inputs.quiet_mode = True
     finetune_gm.inputs.epsilon_angle = 2
     finetune_gm.inputs.number_of_biggest_shells = 2
-    finetune_gm.inputs.finetuning_distance = 0.2
     finetune_gm.inputs.finetuning_substeps = 4
+    finetune_gm.inputs.finetuning_distance = 0.2
     finetune_gm.inputs.finetuning_outwards = True
 
     postfinetune_smooth_gm = pe.Node(
@@ -645,8 +645,8 @@ def brain_workflow(name):
     finetune_wm.inputs.quiet_mode = True
     finetune_wm.inputs.epsilon_angle = 2
     finetune_wm.inputs.number_of_biggest_shells = 2
-    finetune_wm.inputs.finetuning_distance = 0.2
     finetune_wm.inputs.finetuning_substeps = 4
+    finetune_wm.inputs.finetuning_distance = 0.2
     finetune_wm.inputs.finetuning_inwards = True
 
     postfinetune_smooth_wm = postfinetune_smooth_gm.clone(
@@ -1218,7 +1218,7 @@ def create_structural_mesh_workflow(name="structural_mesh"):
     inputnode = pe.Node(
         interface=util.IdentityInterface(fields=["subject_id", "subjects_dir"]), name="inputnode")
     outputnode = pe.Node(
-        interface=util.IdentityInterface(fields=["volume_mesh", "surfaces", "volumes"]), name="outputnode")
+        interface=util.IdentityInterface(fields=["volume_mesh", "surfaces", "volumes", "t1_fsl_space"]), name="outputnode")
 
     brain_wf = brain_workflow("brain")
     ventricle_wf = ventricle_workflow("ventricle")
@@ -1354,6 +1354,7 @@ def create_structural_mesh_workflow(name="structural_mesh"):
     workflow.connect([(mergeSurfaces, outputnode, [("out", "surfaces")])])
     workflow.connect([(mergeVolumes, outputnode, [("out", "volumes")])])
     workflow.connect([(run_volume_meshing, outputnode, [("mesh_file", "volume_mesh")])])
+    workflow.connect([(brain_wf, outputnode, [("t1_to_fsl_space.out_file", "t1_fsl_space")])])
     return workflow
 
 '''
