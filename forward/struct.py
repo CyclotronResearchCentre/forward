@@ -626,6 +626,8 @@ def brain_workflow(name):
     postfinetune_smooth_gm.inputs.quiet_mode = True
     postfinetune_smooth_gm.inputs.epsilon_angle = 2
     postfinetune_smooth_gm.inputs.uniform_remeshing_steps = 1
+    #postfinetune_smooth_gm.inputs.ignore_exception = True
+    postfinetune_smooth_gm.inputs.out_filename = "postfinetune_smooth_gm"
 
     postfinetune_cleanup_gm = postfinetune_smooth_gm.clone(
         "postfinetune_cleanup_gm")
@@ -649,6 +651,7 @@ def brain_workflow(name):
 
     postfinetune_smooth_wm = postfinetune_smooth_gm.clone(
         "postfinetune_smooth_wm")
+    postfinetune_smooth_wm.inputs.out_filename = "postfinetune_smooth_wm"
     postfinetune_cleanup_wm = postfinetune_cleanup_gm.clone(
         "postfinetune_cleanup_wm")
 
