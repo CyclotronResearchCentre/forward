@@ -133,7 +133,6 @@ def mask_from_labels_fn(in_file, label_values):
 
 def check_intersecting_fn(mesh1, mesh2):
     import subprocess
-    from subprocess import CalledProcessError
     intersecting = False
     args = ['meshfix']
     args.append(mesh1)
@@ -151,7 +150,6 @@ def check_intersecting_fn(mesh1, mesh2):
 
 def cut_inner_fn(outer_mesh, inner_mesh):
     import subprocess
-    from subprocess import CalledProcessError
     from nipype.utils.filemanip import split_filename
     import os.path as op
     path, name, ext = split_filename(outer_mesh)
@@ -169,7 +167,6 @@ def cut_inner_fn(outer_mesh, inner_mesh):
 
 def cut_outer_fn(inner_mesh, outer_mesh):
     import subprocess
-    from subprocess import CalledProcessError
     from nipype.utils.filemanip import split_filename
     import os.path as op
     path, name, ext = split_filename(inner_mesh)
@@ -187,7 +184,6 @@ def cut_outer_fn(inner_mesh, outer_mesh):
 
 def decouple_outout_fn(outer_mesh, inner_mesh):
     import subprocess
-    from subprocess import CalledProcessError
     from nipype.utils.filemanip import split_filename
     import os.path as op
     path, name, ext = split_filename(outer_mesh)
@@ -205,7 +201,6 @@ def decouple_outout_fn(outer_mesh, inner_mesh):
 
 def decouple_inin_fn(inner_mesh, outer_mesh):
     import subprocess
-    from subprocess import CalledProcessError
     from nipype.utils.filemanip import split_filename
     import os.path as op
     path, name, ext = split_filename(inner_mesh)
@@ -223,7 +218,6 @@ def decouple_inin_fn(inner_mesh, outer_mesh):
 def decouple_outin_fn(inner_mesh, outer_mesh):
     import subprocess
     from subprocess import CalledProcessError
-    from nipype.utils.filemanip import split_filename
     import os.path as op
     path, name, ext = split_filename(inner_mesh)
     cut_mesh = op.join(path, name + "_DOI.off")
@@ -240,7 +234,6 @@ def decouple_outin_fn(inner_mesh, outer_mesh):
 
 def clean_mesh_fn(mesh_file):
     import subprocess
-    from subprocess import CalledProcessError
     from nipype.utils.filemanip import split_filename
     import os.path as op
     path, name, ext = split_filename(mesh_file)
@@ -276,7 +269,7 @@ def decouple_surfaces_fn(outer_mesh, inner_mesh):
     # the inner_mesh away, and cleans the mesh.
     # The pushing out is also iterative.
     #
-    from nipype.interfaces.meshfix import (
+    from forward.mesh import (
         iter_push_out_fn, check_intersecting_fn,
         cut_inner_fn, clean_mesh_fn)
 
@@ -307,7 +300,7 @@ def iter_remove_throats_fn(outer_mesh, inner_mesh, iterations=5):
     ## "Dilate 2nd by d; Fill holes and keep only 1st afterwards."
     #
     # at each iteration.
-    from nipype.interfaces.meshfix import (check_intersecting_fn,
+    from forward.mesh import (check_intersecting_fn,
                                            decouple_and_cut_inner_fn)
     for i in range(0, iterations):
         intersections = check_intersecting_fn(outer_mesh, inner_mesh)
@@ -329,7 +322,7 @@ def iter_push_out_fn(outer_mesh, inner_mesh, iterations=5):
     ## "Constrain the min distance between the components > d."
     #
     # at each iteration.
-    from nipype.interfaces.meshfix import (check_intersecting_fn,
+    from forward.mesh import (check_intersecting_fn,
                                            decouple_outout_fn)
     for i in range(0, iterations):
         intersecting = check_intersecting_fn(outer_mesh, inner_mesh)
@@ -341,7 +334,7 @@ def iter_push_out_fn(outer_mesh, inner_mesh, iterations=5):
 
 
 def iter_decoupling_fn(outer_mesh, inner_mesh):
-    from nipype.interfaces.meshfix import (check_intersecting_fn,
+    from forward.mesh import (check_intersecting_fn,
                                            cut_inner_fn, decouple_outout_fn, clean_mesh_fn)
 
     intersections = check_intersecting_fn(outer_mesh, inner_mesh)
@@ -358,7 +351,7 @@ def iter_decoupling_fn(outer_mesh, inner_mesh):
 
 
 def remove_spikes_fn(outer_mesh, inner_mesh):
-    from nipype.interfaces.meshfix import (check_intersecting_fn,
+    from forward.mesh import (check_intersecting_fn,
                                            cut_outer_fn, decouple_inin_fn, clean_mesh_fn)
 
     intersections = check_intersecting_fn(outer_mesh, inner_mesh)
@@ -377,7 +370,7 @@ def remove_spikes_fn(outer_mesh, inner_mesh):
 
 
 def decouple_ventricles_fn(ventricles, white_matter):
-    from nipype.interfaces.meshfix import (check_intersecting_fn,
+    from forward.mesh import (check_intersecting_fn,
                                            cut_outer_fn, decouple_inin_fn, clean_mesh_fn)
 
     intersections = check_intersecting_fn(white_matter, ventricles)
@@ -389,7 +382,7 @@ def decouple_ventricles_fn(ventricles, white_matter):
     return ventricles
 
 def decouple_input_from_GM_fn(mesh_file, gray_matter):
-    from nipype.interfaces.meshfix import (check_intersecting_fn,
+    from forward.mesh import (check_intersecting_fn,
                                            cut_outer_fn, decouple_outin_fn, clean_mesh_fn)
 
     intersections = check_intersecting_fn(gray_matter, mesh_file)
@@ -402,7 +395,7 @@ def decouple_input_from_GM_fn(mesh_file, gray_matter):
 
 
 def decouple_outout_cutin_fn(outer_mesh, inner_mesh):
-    from nipype.interfaces.meshfix import (check_intersecting_fn,
+    from forward.mesh import (check_intersecting_fn,
                                            cut_inner_fn, decouple_outout_fn, clean_mesh_fn)
 
     intersections = check_intersecting_fn(outer_mesh, inner_mesh)
