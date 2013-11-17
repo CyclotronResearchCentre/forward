@@ -8,12 +8,12 @@ from forward.struct import create_structural_mesh_workflow
 from forward.datasets import sample
 data_path = sample.data_path()
 
-data_dir = op.abspath(op.curdir)
+data_dir = data_path
 subjects_dir = op.join(data_path,"subjects")
 
 # Normally something like:
 # subjects_dir = os.environ["SUBJECTS_DIR"]
-subject_list = ['fsaverage']
+subject_list = ['TMS007']
 
 infosource = pe.Node(interface=util.IdentityInterface(
     fields=['subject_id', 'subjects_dir']), name="infosource")
@@ -46,3 +46,4 @@ struct_proc.connect([(infosource, datasink, [("subject_id", "subject_id")])])
 if __name__ == '__main__':
     struct_proc.write_graph()
     #struct_proc.run()
+    struct_proc.run(plugin='MultiProc', plugin_args={'n_procs' : 4})

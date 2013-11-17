@@ -138,7 +138,7 @@ def create_tess_constrain_smooth_wf(name):
 
     mask_to_fsspace = pe.Node(
             interface=fsl.ApplyXfm(), name='mask_to_fsspace')
-    mask_to_fsspace.inputs.in_matrix_file = "../etc/fs2fsl_conform_inverse.mat"
+    mask_to_fsspace.inputs.in_matrix_file = op.join(os.environ["FWD_DIR"],"etc/fs2fsl_conform_inverse.mat")
 
     mask_to_mgz = pe.Node(interface=fs.MRIConvert(), name='mask_to_mgz')
     mask_to_mgz.inputs.out_type = "mgz"
@@ -193,13 +193,13 @@ def create_stl_fsmesh_floodfilled_wf(name):
 
     unityxform = pe.Node(
         interface=fs.TransformSurface2Talairach(), name='unityxform')
-    unityxform.inputs.transform_file = "../etc/unity.xfm"
+    unityxform.inputs.transform_file = op.join(os.environ["FWD_DIR"],"etc/unity.xfm")
 
     floodfill = pe.Node(interface=fs.FloodfillSurface(), name='floodfill')
     floodfill.inputs.conform_before_writing = True
 
     filled_to_fsl_space = pe.Node(interface=fsl.ApplyXfm(), name='filled_to_fsl_space')
-    filled_to_fsl_space.inputs.in_matrix_file = "../etc/fs2fsl_conform.mat"
+    filled_to_fsl_space.inputs.in_matrix_file = op.join(os.environ["FWD_DIR"],"etc/fs2fsl_conform.mat")
 
     workflow.connect([(inputnode, input_to_STL, [("in_file", "in_file1")])])
     workflow.connect([(input_to_STL, outputnode, [("mesh_file", "stl_mesh")])])
@@ -271,7 +271,7 @@ def brain_workflow(name):
         interface=fs.MRIConvert(), name='orig_mgz_to_nii')
     nu_mgz_to_nii = orig_mgz_to_nii.clone("nu_mgz_to_nii")
     t1_to_fsl_space = pe.Node(interface=fsl.ApplyXfm(), name='t1_to_fsl_space')
-    t1_to_fsl_space.inputs.in_matrix_file = "../etc/fs2fsl_conform.mat"
+    t1_to_fsl_space.inputs.in_matrix_file = op.join(os.environ["FWD_DIR"],"etc/fs2fsl_conform.mat")
 
     workflow.connect(
         [(FreeSurferSource, orig_mgz_to_nii, [("orig", "in_file")])])
@@ -319,7 +319,7 @@ def brain_workflow(name):
         interface=fsl.MultiImageMaths(), name="apply_kernel_to_CC")
     apply_kernel_to_CC.inputs.op_string = "-kernel file %s -fmean"
     apply_kernel_to_CC.output_datatype = "float"
-    apply_kernel_to_CC.inputs.operand_files = "../etc/CC_filterkernel.nii.gz"
+    apply_kernel_to_CC.inputs.operand_files = op.join(os.environ["FWD_DIR"],"etc/CC_filterkernel.nii.gz")
 
     finalize_callosal_mask = pe.Node(
         interface=fsl.ImageMaths(), name="finalize_callosal_mask")
@@ -337,7 +337,7 @@ def brain_workflow(name):
         interface=fsl.ImageMaths(), name="isolate_CSF_slab")
     isolate_CSF_slab.inputs.op_string = "-thr 24 -uthr 24 -dilM -bin"
     CSF_yshift = pe.Node(interface=fsl.ApplyXfm(), name='CSF_yshift')
-    CSF_yshift.inputs.in_matrix_file = "../etc/yshift.mat"
+    CSF_yshift.inputs.in_matrix_file = op.join(os.environ["FWD_DIR"],"etc/yshift.mat")
 
     workflow.connect(
         [(labels_to_fsl_space, isolate_CSF_slab, [("out_file", "in_file")])])
@@ -361,7 +361,7 @@ def brain_workflow(name):
 
     subcort_mask_to_fsspace = pe.Node(
         interface=fsl.ApplyXfm(), name='subcort_mask_to_fsspace')
-    subcort_mask_to_fsspace.inputs.in_matrix_file = "../etc/fs2fsl_conform_inverse.mat"
+    subcort_mask_to_fsspace.inputs.in_matrix_file = op.join(os.environ["FWD_DIR"],"etc/fs2fsl_conform_inverse.mat")
     subcort_to_mgz = pe.Node(interface=fs.MRIConvert(), name='subcort_to_mgz')
     subcort_to_mgz.inputs.out_type = "mgz"
     subcort_to_mgz.inputs.conform = True
@@ -947,7 +947,7 @@ def cerebrospinal_fluid_workflow(name):
         interface=util.IdentityInterface(fields=["csf_surface", "csf_volume", "NU_bet_meshfile"]), name="outputnode")
 
     nu_to_MNI = pe.Node(interface=fsl.ApplyXfm(), name='nu_to_MNI')
-    nu_to_MNI.inputs.in_matrix_file = "../etc/fs2fsl_conform.mat"
+    nu_to_MNI.inputs.in_matrix_file = op.join(os.environ["FWD_DIR"],"etc/fs2fsl_conform.mat")
 
     get_initial_csf_surface = pe.Node(
         interface=fsl.BET(), name='get_initial_csf_surface')
