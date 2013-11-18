@@ -227,6 +227,8 @@ def create_conductivity_tensor_mesh_workflow(name="add_conductivity"):
     affine_register.inputs.dof = 6
 
     nonlinear_warp = pe.Node(interface=fsl.FNIRT(), name='nonlinear_warp')
+    #nonlinear_warp.inputs.field_file = True
+    nonlinear_warp.inputs.fieldcoeff_file = "FA_T1_warp.nii"
 
     register_tensor = pe.Node(interface=fsl.VecReg(), name='register_tensor')
 
@@ -277,9 +279,9 @@ def create_conductivity_tensor_mesh_workflow(name="add_conductivity"):
     workflow.connect([(dtifit, register_tensor, [('tensor', 'in_file')])])
     workflow.connect([(bet_T1, register_tensor, [('out_file', 'ref_vol')])])
     workflow.connect(
-        [(affine_register, register_tensor, [('out_matrix_file', 'affine_mat')])])
+        [(affine_register, nonlinear_warp, [('out_matrix_file', 'affine_file')])])
     workflow.connect(
-        [(nonlinear_warp, register_tensor, [('field_file', 'warp_field')])])
+        [(nonlinear_warp, register_tensor, [('fieldcoeff_file', 'warp_field')])])
     workflow.connect(
         [(register_tensor, decompose_tensor, [('out_file', 'in_file')])])
 

@@ -4,8 +4,6 @@ import nipype.interfaces.io as nio           # Data i/o
 import nipype.interfaces.utility as util     # utility
 import nipype.pipeline.engine as pe          # pypeline engine
 from forward.dti import create_conductivity_tensor_mesh_workflow
-import ipdb
-ipdb.set_trace()
 
 from forward.datasets import sample
 data_path = sample.data_path()
@@ -39,7 +37,7 @@ preproc = create_conductivity_tensor_mesh_workflow()
 
 datasink = pe.Node(interface=nio.DataSink(),
                    name="datasink")
-datasink.inputs.base_directory = op.abspath('structural_datasink')
+datasink.inputs.base_directory = op.abspath('diffusion_datasink')
 datasink.inputs.container = 'subject'
 
 dti_proc = pe.Workflow(name="dti_proc")

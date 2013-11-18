@@ -1,4 +1,6 @@
 import numpy as np
+from nipype import logging
+iflogger = logging.getLogger('interface')
 
 def read_mesh(mesh_filename, elements_to_consider):
     iflogger.info("Reading mesh file: %s" % mesh_filename)
