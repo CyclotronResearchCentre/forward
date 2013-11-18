@@ -1,8 +1,9 @@
 import numpy as np
-from nipype import logging
-iflogger = logging.getLogger('interface')
 
 def read_mesh(mesh_filename, elements_to_consider):
+    from nipype import logging
+    iflogger = logging.getLogger('interface')
+
     iflogger.info("Reading mesh file: %s" % mesh_filename)
     iflogger.info("Mesh ids to consider: %s" % elements_to_consider)
 
@@ -34,10 +35,9 @@ def read_mesh(mesh_filename, elements_to_consider):
                 line = mesh_file.readline()
                 elem_data = line.split()
                 if int(elem_data[3]) in elements_to_consider:
-                    polygons.append(elem_data)
+                    polygons.append(np.array(elem_data))
 
             polygons = np.array((polygons))
-            poly_indices = polygons[:, -3:]
             iflogger.info("Done reading elements")
             break
     

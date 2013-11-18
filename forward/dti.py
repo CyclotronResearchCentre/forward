@@ -125,6 +125,9 @@ def include_gmsh_tensor_elements(mesh_file, tensor_file, mask_file, mask_thresho
     from nipype.utils.filemanip import split_filename
     import os.path as op
     from forward.mesh import read_mesh
+    from nipype import logging
+    import shutil
+    iflogger = logging.getLogger('interface')
 
     # Load 4D (6 volume: xx, xy, xz, yy, yz, zz) conductivity tensor image
     tensor_image = nb.load(tensor_file)
@@ -199,11 +202,6 @@ def include_gmsh_tensor_elements(mesh_file, tensor_file, mask_file, mask_thresho
     f.close()
 
     iflogger.info("Finished writing to %s" % out_file)
-    ## Nifti from gmsh
-    # Create empty nifti volume (e.g. 256 conformed, 1mm isotropic)
-    # Find centroid of all elements
-    # Find voxels they lie in, assign e_field value appropriately
-    # (many volumes, almost 180 x1 y1 z1 x2 y2 z2)
     return out_file
 
 

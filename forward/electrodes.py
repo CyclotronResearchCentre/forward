@@ -118,7 +118,7 @@ def get_elements_near_points(points, mesh_filename, mesh_id, new_phys_ids,
                     mask = np.in1d(nodes, closest_nodes)
                     if np.sum(mask) >= 1:
                         which_elec = np.where(
-                            closest_nodes == nodes[mask][0])[0]
+                            closest_nodes == nodes[mask][0])[0][0]
                         elem_data[3] = str(new_phys_ids[which_elec])
                         #elem_data[4] = str(new_elem_ids[which_elec])
 
@@ -126,6 +126,7 @@ def get_elements_near_points(points, mesh_filename, mesh_id, new_phys_ids,
                     f.write(rw_line)
                 else:
                     f.write(line)
+        elif line == '$EndElementData\n':
             break
 
     mesh_file.close()

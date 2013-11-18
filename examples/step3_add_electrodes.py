@@ -24,8 +24,8 @@ electrode_name_file = op.join(data_path, subject_id, "ElectrodeNames.txt")
 
 # If you want to use the structural mesh, rather than the mesh including the conductivity
 # tensors, you should uncomment the following line, and comment the one below it.
-mesh_path = op.abspath("structural_datasink/subject/volume_mesh/")
-#mesh_path = op.abspath("diffusion_datasink/subject/mesh_file/")
+#mesh_path = op.abspath("structural_datasink/subject/volume_mesh/")
+mesh_path = op.abspath("diffusion_datasink/subject/mesh_file/")
 
 assert(op.exists(mesh_path))
 search_string = "/*%s/%s*.msh" % (subject_id, subject_id)
