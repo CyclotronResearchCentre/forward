@@ -26,11 +26,11 @@
 scale = 0.0001;
 Group {
   // The PhysicalVolumes
-  WhiteMatter_Cerebellum = Region[1001];
-  GrayMatter = Region[1002];
-  CSF_Ventricles = Region[1003];
-  Skull = Region[1004];
-  Scalp = Region[1005];
+  WhiteMatter_Cerebellum = Region[1];
+  GrayMatter = Region[2];
+  CSF_Ventricles = Region[3];
+  Skull = Region[4];
+  Scalp = Region[5];
   Anode = Region[5008];
   Cathode = Region[5011];
 
