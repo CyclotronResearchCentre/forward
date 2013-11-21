@@ -47,16 +47,16 @@ def volume_mesh_fn(subject_id, gm, wm, csf, skull, skin, cerebellum, ventricles)
     f.write('Volume(5) = {4, 5};    // skin volume\n')
     f.write('Volume(6) = {6};       // cerebellum volume\n')
     f.write('Volume(7) = {7};       // ventricle volume\n')
-    f.write('Physical Surface(1) = {1,6}; // merge wm and cerebellum; LHS: target surface region number, RHS: surface number (i.e. from merge ...)\n')
-    f.write('Physical Surface(2) = {2}; \n')
-    f.write('Physical Surface(3) = {3,7}; // merge csf and ventricles \n')
-    f.write('Physical Surface(4) = {4};\n')
-    f.write('Physical Surface(5) = {5};\n')
-    f.write('Physical Volume(1) = {1,6}; // merge wm and cerebellum; LHS: target volume region number, RHS: volume number\n')
-    f.write('Physical Volume(2) = {2}; \n')
-    f.write('Physical Volume(3) = {3,7}; // merge csf and ventricles\n')
-    f.write('Physical Volume(4) = {4};\n')
-    f.write('Physical Volume(5) = {5};\n')
+    f.write('Physical Surface(2001) = {1,6}; // merge wm and cerebellum; LHS: target surface region number, RHS: surface number (i.e. from merge ...)\n')
+    f.write('Physical Surface(2002) = {2}; \n')
+    f.write('Physical Surface(2003) = {3,7}; // merge csf and ventricles \n')
+    f.write('Physical Surface(2004) = {4};\n')
+    f.write('Physical Surface(2005) = {5};\n')
+    f.write('Physical Volume(1001) = {1,6}; // merge wm and cerebellum; LHS: target volume region number, RHS: volume number\n')
+    f.write('Physical Volume(1002) = {2}; \n')
+    f.write('Physical Volume(1003) = {3,7}; // merge csf and ventricles\n')
+    f.write('Physical Volume(1004) = {4};\n')
+    f.write('Physical Volume(1005) = {5};\n')
     f.close()
     return out_file
 
@@ -692,12 +692,12 @@ def brain_workflow(name):
     wm_stl_floodfill_workflow = create_stl_fsmesh_floodfilled_wf(
         "wm_stl_floodfill")
     wm_stl_floodfill_workflow.inputs.input_to_STL.out_filename = "wm.stl"
-    wm_stl_floodfill_workflow.inputs.filled_to_fsl_space.out_file = "wm.nii"
+    wm_stl_floodfill_workflow.inputs.filled_to_fsl_space.out_file = "wm.nii.gz"
 
     gm_stl_floodfill_workflow = create_stl_fsmesh_floodfilled_wf(
         "gm_stl_floodfill")
     gm_stl_floodfill_workflow.inputs.input_to_STL.out_filename = "gm.stl"
-    gm_stl_floodfill_workflow.inputs.filled_to_fsl_space.out_file = "gm.nii"
+    gm_stl_floodfill_workflow.inputs.filled_to_fsl_space.out_file = "gm.nii.gz"
 
     workflow.connect(
         [(remove_spikes, wm_stl_floodfill_workflow, [("inner_mesh", "inputnode.in_file")])])
@@ -792,7 +792,7 @@ def ventricle_workflow(name):
     ventricle_stl_floodfill_workflow = create_stl_fsmesh_floodfilled_wf(
     "ventricle_stl_floodfill")
     ventricle_stl_floodfill_workflow.inputs.input_to_STL.out_filename = "ventricles.stl"
-    ventricle_stl_floodfill_workflow.inputs.filled_to_fsl_space.out_file = "ventricles.nii"
+    ventricle_stl_floodfill_workflow.inputs.filled_to_fsl_space.out_file = "ventricles.nii.gz"
 
     workflow = pe.Workflow(name=name + '_workflow')
     workflow.connect(
@@ -893,7 +893,7 @@ def cerebellum_workflow(name):
     cb_stl_floodfill_workflow = create_stl_fsmesh_floodfilled_wf(
         "cb_stl_floodfill")
     cb_stl_floodfill_workflow.inputs.input_to_STL.out_filename = "cerebellum.stl"
-    cb_stl_floodfill_workflow.inputs.filled_to_fsl_space.out_file = "cerebellum.nii"
+    cb_stl_floodfill_workflow.inputs.filled_to_fsl_space.out_file = "cerebellum.nii.gz"
 
     workflow = pe.Workflow(name=name + '_workflow')
     workflow.connect(
@@ -987,7 +987,7 @@ def cerebrospinal_fluid_workflow(name):
     csf_stl_floodfill_workflow = create_stl_fsmesh_floodfilled_wf(
         "csf_stl_floodfill")
     csf_stl_floodfill_workflow.inputs.input_to_STL.out_filename = "csf.stl"
-    csf_stl_floodfill_workflow.inputs.filled_to_fsl_space.out_file = "csf.nii"
+    csf_stl_floodfill_workflow.inputs.filled_to_fsl_space.out_file = "csf.nii.gz"
 
     workflow = pe.Workflow(name=name + '_workflow')
 
@@ -1081,7 +1081,7 @@ def skull_workflow(name):
     skull_stl_floodfill_workflow = create_stl_fsmesh_floodfilled_wf(
         "skull_stl_floodfill")
     skull_stl_floodfill_workflow.inputs.input_to_STL.out_filename = "skull.stl"
-    skull_stl_floodfill_workflow.inputs.filled_to_fsl_space.out_file = "skull.nii"
+    skull_stl_floodfill_workflow.inputs.filled_to_fsl_space.out_file = "skull.nii.gz"
     skull_stl_floodfill_workflow.inputs.floodfill.resolution = 0.5
 
     workflow = pe.Workflow(name=name + '_workflow')
@@ -1173,7 +1173,7 @@ def skin_workflow(name):
     skin_stl_floodfill_workflow = create_stl_fsmesh_floodfilled_wf(
         "skin_stl_floodfill")
     skin_stl_floodfill_workflow.inputs.input_to_STL.out_filename = "skin.stl"
-    skin_stl_floodfill_workflow.inputs.filled_to_fsl_space.out_file = "skin.nii"
+    skin_stl_floodfill_workflow.inputs.filled_to_fsl_space.out_file = "skin.nii.gz"
     skin_stl_floodfill_workflow.inputs.floodfill.resolution = 0.5
 
     workflow = pe.Workflow(name=name + '_workflow')

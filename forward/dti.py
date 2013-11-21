@@ -142,7 +142,7 @@ def include_gmsh_tensor_elements(mesh_file, tensor_file, mask_file, mask_thresho
     assert(np.shape(tensor_data)[0:3] == np.shape(mask_data)[0:3])
 
     # Define various constants
-    elements_to_consider = [1] #Use only white matter
+    elements_to_consider = [1001] #Use only white matter
     vx, vy, vz = header.get_zooms()[0:3]
     max_x, max_y, max_z = np.shape(tensor_data)[0:3]
     halfx, halfy, halfz = np.array((vx*max_x, vy*max_y, vz*max_z))/2.0

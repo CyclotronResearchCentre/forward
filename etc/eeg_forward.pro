@@ -26,11 +26,11 @@
 scale = 0.0001;
 Group {
   // The PhysicalVolumes
-  WhiteMatter_Cerebellum = Region[1];
-  GrayMatter = Region[2];
-  CSF_Ventricles = Region[3];
-  Skull = Region[4];
-  Scalp = Region[5];
+  WhiteMatter_Cerebellum = Region[1001];
+  GrayMatter = Region[1002];
+  CSF_Ventricles = Region[1003];
+  Skull = Region[1004];
+  Scalp = Region[1005];
   Anode = Region[5008];
   Cathode = Region[5011];
 
@@ -50,9 +50,7 @@ Function {
     sigma[GrayMatter]=0.33;
 
     // while GmshRead is commented out!
-
-    sigma[WhiteMatter_Cerebellum] = TensorField[XYZ[]] #1 ? #1 : 0.33 ;//: 0.33*1e-3 ;
-    //sigma[WhiteMatter_Cerebellum] = 0.33;
+    sigma[WhiteMatter_Cerebellum] = 0.33; //sigma[WhiteMatter_Cerebellum] = TensorField[XYZ[]] #1 ? #1 : 0.33 ;//: 0.33*1e-3 ;
 
     sigma[CSF_Ventricles] = 1.79;
     sigma[Skull]=0.0042;
@@ -140,7 +138,7 @@ Resolution {{
   Operation {
     SetGlobalSolverOptions["-ksp_type gmres -ksp_gmres_restart 1000 -ksp_rtol 1e-8"];
     SetGlobalSolverOptions["-pc_type ilu -pc_factor_levels 2 "];
-    GmshRead["TMS007_running.msh"];
+    //GmshRead["TMS007_running.msh"]; // Replaced by forward.leadfield.write_problem_file()
     Generate[Electrostatic_System];
     Solve[Electrostatic_System];
     SaveSolution[Electrostatic_System];
@@ -159,15 +157,13 @@ PostProcessing {{
     {Name e; Value {Term {[-{Grad v}]; In Omega; Jacobian Volume;}}}
     // Sanity check for electrode potential
     {Name v_elec; Value {Term {[{v}]; In Electrodes; Jacobian Volume;}}}
-
-    // Sanity check for electrode potential
     {Name e_brain; Value {Term {[-{Grad v}]; In GrayMatter; Jacobian Volume;}}}
   }
 }}
 
 
 PostOperation v_j_e UsingPost Electrostatics_PostProcessing {
-  Print [v, OnElementsOf Omega, File "v_eeg_forward.pos"];
+  //Print [v, OnElementsOf Omega, File "v_eeg_forward.pos"];
   Print [v_elec, OnElementsOf Electrodes, File "v_elec.pos"];
 
   // Current density is in amperes per square metre [A / m^2]
@@ -182,15 +178,16 @@ PostOperation v_j_e UsingPost Electrostatics_PostProcessing {
 
   // Electric field is in volts per metre [V / M]
   //Print [e_brain, OnElementsOf GrayMatter, Depth 0, Format Table, File "e_eeg_forward.txt" ];
-  Print [e_brain, OnElementsOf GrayMatter, File "e_eeg_forward.pos" ];
+  Print [e_brain, OnElementsOf GrayMatter, File "e_brain.pos" ];
 
   //Print [v, OnElementsOf Omega, Format SimpleTable, File "v_eeg_forward.txt" ];
 
   // Sanity check for electrode potential
   // V is in Volts [V]
-  Print [v_elec, OnElementsOf Electrodes, Format Table, File "v_electrodes.txt" ];
+  //Print [v_elec, OnElementsOf Electrodes, Format Table, File "v_electrodes.txt" ];
 
   // Sanity check for electrode potential
   //Print [v_elec, OnElementsOf Electrodes, Depth 0, Format SimpleTable, File "v_electrodes_d0.txt" ];
 
 }
+//End of File

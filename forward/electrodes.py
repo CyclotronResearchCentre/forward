@@ -130,7 +130,6 @@ def get_elements_near_points(points, mesh_filename, mesh_id, new_phys_ids,
             break
 
     mesh_file.close()
-    f.write("$EndElements\n")
     f.close()
     elapsed_time = time.time() - start_time
     print(elapsed_time)
