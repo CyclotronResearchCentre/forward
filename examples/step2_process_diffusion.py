@@ -30,7 +30,7 @@ datasource.inputs.base_directory = data_path
 datasource.inputs.field_template = dict(
     dwi='%s/*%s.nii.gz', bvecs='%s/*%s', bvals='%s/*%s',
     mesh_file='../structural_datasink/subject/volume_mesh/*%s/%s*.msh',
-    struct='../structural_datasink/subject/t1_fsl_space/*%s/*%s*.nii')
+    struct='../structural_datasink/subject/t1_fsl_space/*%s/*%s*.nii.gz')
 datasource.inputs.template_args = info
 
 preproc = create_conductivity_tensor_mesh_workflow()
