@@ -124,7 +124,7 @@ def create_4_shell_model(radii=[85, 88, 92, 100], out_file='4shell.msh'):
     assert(len(radii) == 4)
 
     characteristic_length = 5
-    electrode_location_file = op.join(os.environ["FWD_DIR"], "etc", "isocahedron42.txt")
+    electrode_location_file = op.join(os.environ["FWD_DIR"], "etc", "icosahedron42.txt")
 
     brain = create_sphere(
         radii[0], 1, characteristic_length, out_file="brain_sphere.geo")
