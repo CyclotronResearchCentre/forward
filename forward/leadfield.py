@@ -35,12 +35,13 @@ def check_potential(voltage_table_file):
     return out_file
 
 
-def write_pro_file(mesh_file, conductivity_tensor_included, source_index, ground_index, electrode_name_file):
+def write_pro_file(mesh_file, conductivity_tensor_included, source_index, ground_index, electrode_name_file, orig_pro_file=None):
     import numpy as np
     import os
     import os.path as op
 
-    orig_pro_file = op.join(os.environ["FWD_DIR"], "etc/eeg_forward.pro")
+    if orig_pro_file is None:
+        orig_pro_file = op.join(os.environ["FWD_DIR"], "etc/eeg_forward.pro")
 
     elec_names = np.loadtxt(electrode_name_file, dtype=str)
     electrode_namelist = elec_names.tolist()
@@ -150,7 +151,7 @@ def create_forward_model_workflow(name, conductivity_tensor_included=False):
 
     # Define interface to rewrite the Problem for each electrode
     write_problem_file_interface = util.Function(
-        input_names=["mesh_file", "conductivity_tensor_included", "source_index", "ground_index", "electrode_name_file"],
+        input_names=["mesh_file", "conductivity_tensor_included", "source_index", "ground_index", "electrode_name_file", "orig_pro_file"],
         output_names=["problem_file"], function=write_pro_file)
 
     write_problem_file = pe.MapNode(interface=write_problem_file_interface,

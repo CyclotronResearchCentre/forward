@@ -8,7 +8,11 @@ def rewrite_mesh_with_electrodes(electrode_position_file, electrode_name_file, m
     _, name, _ = split_filename(mesh_file)
     out_basename = op.abspath(name + "_elec")
 
-    positions = np.loadtxt(electrode_position_file, dtype=float)
+    try:
+        positions = np.loadtxt(electrode_position_file, dtype=float)
+    except ValueError:
+        positions = np.loadtxt(electrode_position_file, dtype=float, delimiter=",")
+
     electrode_names = np.loadtxt(electrode_name_file, dtype=str)
     num_electrodes = len(positions)
     new_phys_ids = range(5000, 5000 + num_electrodes)
@@ -120,13 +124,13 @@ def get_elements_near_points(points, mesh_filename, mesh_id, new_phys_ids,
                         which_elec = np.where(
                             closest_nodes == nodes[mask][0])[0][0]
                         elem_data[3] = str(new_phys_ids[which_elec])
-                        #elem_data[4] = str(new_elem_ids[which_elec])
+                        elem_data[4] = str(new_elem_ids[which_elec])
 
                     rw_line = " ".join(elem_data) + "\n"
                     f.write(rw_line)
                 else:
                     f.write(line)
-        elif line == '$EndElementData\n':
+        elif line == '$EndElementData\n' or len(line) == 0:
             break
 
     mesh_file.close()

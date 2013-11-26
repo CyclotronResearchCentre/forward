@@ -1,6 +1,8 @@
+import numpy as np
+import os
 import os.path as op
 import subprocess
-
+from forward.electrodes import rewrite_mesh_with_electrodes
 
 def create_sphere(radius, vol_id, lc=10, out_file="newsphere.msh"):
     f = open(op.abspath(out_file), "w")
@@ -83,10 +85,10 @@ def merge_and_diff(in_files, ids_outside_inward, out_file):
     f.write("Physical Surface(2003) = { 3 };\n")
     f.write("Physical Surface(2004) = { 4 };\n")
 
-    f.write("Physical Volume(4) = { 4 }; //skin volume\n")
-    f.write("Physical Volume(3) = { 3 }; //skull volume\n")
-    f.write("Physical Volume(2) = { 2 }; //csf volume\n")
-    f.write("Physical Volume(1) = { 1 }; //brain volume\n")
+    f.write("Physical Volume(1004) = { 4 }; //skin volume\n")
+    f.write("Physical Volume(1003) = { 3 }; //skull volume\n")
+    f.write("Physical Volume(1002) = { 2 }; //csf volume\n")
+    f.write("Physical Volume(1001) = { 1 }; //brain volume\n")
 
     f.close()
     call_list = ["gmsh", merge_script, "-v", "0", "-3",
@@ -97,10 +99,32 @@ def merge_and_diff(in_files, ids_outside_inward, out_file):
     return out_file
 
 
+def add_sensors(electrode_location_file, mesh_file, radii):
+    points = np.loadtxt(electrode_location_file, delimiter=",")
+    points = np.max(radii) * points
+    newelec = op.abspath("newelec.txt")
+    np.savetxt(newelec, points, delimiter=",")
+    elec_name_file = op.abspath(op.basename(electrode_location_file) + "_names.txt")
+    f = open(elec_name_file, "w")
+    for idx in range(0,len(points)):
+        name = "vertex%03d" % (idx + 1)
+        f.write("%s\n" % name)
+    f.close()
+
+    print('Rewriting mesh with sensors')
+    out_file = rewrite_mesh_with_electrodes(
+        newelec,
+        electrode_name_file=elec_name_file,
+        mesh_file=mesh_file,
+        mesh_id=1004)
+    return op.abspath(out_file), elec_name_file
+
+
 def create_4_shell_model(radii=[85, 88, 92, 100], out_file='4shell.msh'):
     assert(len(radii) == 4)
 
     characteristic_length = 5
+    electrode_location_file = op.join(os.environ["FWD_DIR"], "etc", "isocahedron42.txt")
 
     brain = create_sphere(
         radii[0], 1, characteristic_length, out_file="brain_sphere.geo")
@@ -118,8 +142,8 @@ def create_4_shell_model(radii=[85, 88, 92, 100], out_file='4shell.msh'):
         radii[3], 4, characteristic_length, out_file="skin_sphere.geo")
     skin_msh = mesh_2D(skin)
 
-    merge_and_diff([brain_msh, csf_msh, skull_msh, skin_msh],
+    mesh_file = merge_and_diff([brain_msh, csf_msh, skull_msh, skin_msh],
                    ids_outside_inward=[4, 3, 2, 1], out_file=out_file)
-    return out_file
 
-print(create_4_shell_model())
+    final_file, electrode_name_file = add_sensors(electrode_location_file, mesh_file, radii)
+    return final_file, electrode_name_file
