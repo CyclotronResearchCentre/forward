@@ -1,0 +1,125 @@
+import os.path as op
+import subprocess
+
+
+def create_sphere(radius, vol_id, lc=10, out_file="newsphere.msh"):
+    f = open(op.abspath(out_file), "w")
+    f.write("lc = %f;\n" % lc)
+    f.write("R = %f;\n" % radius)
+    f.write("x_center = 0;\n")
+    f.write("y_center = 0;\n")
+    f.write("z_center = 0;\n")
+    f.write("Point(1) = {x_center, y_center, z_center, lc};\n")
+    f.write("Point(2) = {x_center - R, y_center, z_center, lc};\n")
+    f.write("Point(4) = {x_center, y_center - R, z_center, lc};\n")
+    f.write("Point(5) = {x_center + R, y_center, z_center, lc};\n")
+    f.write("Point(8) = {x_center, y_center, z_center - R, lc};\n")
+    f.write("Point(11) = {x_center, y_center + R, z_center, lc};\n")
+    f.write("Point(14) = {x_center, y_center, z_center + R, lc};\n")
+    f.write("Circle (1) = {2, 1, 4} Plane{0, 0, 1};\n")
+    f.write("Circle (2) = {4, 1, 5} Plane{0, 0, 1};\n")
+    f.write("Circle (3) = {2, 1, 8} Plane{0, 0, 1};\n")
+    f.write("Circle (4) = {4, 1, 8} Plane{0, 0, 1};\n")
+    f.write("Circle (6) = {2, 1, 11} Plane{0, 0, 1};\n")
+    f.write("Circle (7) = {8, 1, 11} Plane{0, 0, 1};\n")
+    f.write("Circle (9) = {2, 1, 14} Plane{0, 0, 1};\n")
+    f.write("Circle (10) = {11, 1, 14} Plane{0, 0, 1};\n")
+    f.write("Circle (13) = {14, 1, 4} Plane{0, 0, 1};\n")
+    f.write("Circle (15) = {8, 1, 5} Plane{0, 0, 1};\n")
+    f.write("Circle (18) = {11, 1, 5} Plane{0, 0, 1};\n")
+    f.write("Circle (21) = {14, 1, 5} Plane{0, 0, 1};\n")
+    f.write("Line Loop (1000005) = {1, 4, -3};\n")
+    f.write("Ruled Surface (5) = {1000005};\n")
+    f.write("Line Loop (1000008) = {3, 7, -6};\n")
+    f.write("Ruled Surface (8) = {1000008};\n")
+    f.write("Line Loop (1000011) = {6, 10, -9};\n")
+    f.write("Ruled Surface (11) = {1000011};\n")
+    f.write("Line Loop (1000014) = {9, 13, -1};\n")
+    f.write("Ruled Surface (14) = {1000014};\n")
+    f.write("Line Loop (1000017) = {-15, -4, 2};\n")
+    f.write("Ruled Surface (17) = {1000017};\n")
+    f.write("Line Loop (1000020) = {-18, -7, 15};\n")
+    f.write("Ruled Surface (20) = {1000020};\n")
+    f.write("Line Loop (1000023) = {-21, -10, 18};\n")
+    f.write("Ruled Surface (23) = {1000023};\n")
+    f.write("Line Loop (1000026) = {-2, -13, 21};\n")
+    f.write("Ruled Surface (26) = {1000026};\n")
+    f.write("Surface Loop(%d) = { 5, 8, 11, 14, 17, 20, 23, 26 };\n" % vol_id)
+    f.close()
+    return out_file
+
+
+def mesh_2D(in_file):
+    out_file = op.basename(in_file).replace('.geo', '.stl')
+    call_list = ["gmsh", in_file, "-v", "0", "-2", "-format", "stl",
+                 "-o", out_file]
+    print(" ".join(call_list))
+    subprocess.call(call_list)
+    return out_file
+
+
+def merge_and_diff(in_files, ids_outside_inward, out_file):
+    merge_script = op.abspath("merge.geo")
+    n = len(ids_outside_inward) - 1
+    f = open(merge_script, "w")
+    f.write("Mesh.Algorithm3D = 4;\n")
+    f.write("Mesh.Optimize = 1;\n")
+    f.write("Mesh.OptimizeNetgen = 1;\n")
+    for in_file in in_files:
+        f.write('Merge "%s";\n' % in_file)
+
+    f.write("Surface Loop (1) = {1}; //brain\n")
+    f.write("Surface Loop (2) = {2}; //csf\n")
+    f.write("Surface Loop (3) = {3}; //skull\n")
+    f.write("Surface Loop (4) = {4}; //skin\n")
+
+    f.write("Volume(4) = { 3,4 }; //skin volume\n")
+    f.write("Volume(3) = { 2,3 }; //skull volume\n")
+    f.write("Volume(2) = { 1,2 }; //csf volume\n")
+    f.write("Volume(1) = { 1 }; //brain volume\n")
+
+    f.write("Physical Surface(2001) = { 1 };\n")
+    f.write("Physical Surface(2002) = { 2 };\n")
+    f.write("Physical Surface(2003) = { 3 };\n")
+    f.write("Physical Surface(2004) = { 4 };\n")
+
+    f.write("Physical Volume(4) = { 4 }; //skin volume\n")
+    f.write("Physical Volume(3) = { 3 }; //skull volume\n")
+    f.write("Physical Volume(2) = { 2 }; //csf volume\n")
+    f.write("Physical Volume(1) = { 1 }; //brain volume\n")
+
+    f.close()
+    call_list = ["gmsh", merge_script, "-v", "0", "-3",
+                 "-format", "msh", "-o", out_file]
+    print(" ".join(call_list))
+    subprocess.call(call_list)
+
+    return out_file
+
+
+def create_4_shell_model(radii=[85, 88, 92, 100], out_file='4shell.msh'):
+    assert(len(radii) == 4)
+
+    characteristic_length = 5
+
+    brain = create_sphere(
+        radii[0], 1, characteristic_length, out_file="brain_sphere.geo")
+    brain_msh = mesh_2D(brain)
+
+    csf = create_sphere(radii[1], 2, characteristic_length,
+                        out_file="csf_sphere.geo")
+    csf_msh = mesh_2D(csf)
+
+    skull = create_sphere(
+        radii[2], 3, characteristic_length, out_file="skull_sphere.geo")
+    skull_msh = mesh_2D(skull)
+
+    skin = create_sphere(
+        radii[3], 4, characteristic_length, out_file="skin_sphere.geo")
+    skin_msh = mesh_2D(skin)
+
+    merge_and_diff([brain_msh, csf_msh, skull_msh, skin_msh],
+                   ids_outside_inward=[4, 3, 2, 1], out_file=out_file)
+    return out_file
+
+print(create_4_shell_model())
