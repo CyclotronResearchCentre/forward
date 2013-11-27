@@ -96,10 +96,8 @@ def combine_leadfield_rows(row_data_files, source_indices):
     from nipype.utils.filemanip import split_filename
     import os.path as op
     import numpy as np
-    import ipdb
 
     data_name = "e_field"
-    ipdb.set_trace()
     '''
     Read electric field results files and append into matrix
     '''
@@ -134,7 +132,6 @@ def combine_leadfield_rows(row_data_files, source_indices):
     out_filename = op.abspath(name + ".hdf5")
     out_leadfield_file = h5py.File(out_filename, "w")
     dset = out_leadfield_file.create_dataset("leadfield", (N, M), dtype="f", compression="lzf")
-    ipdb.set_trace()
     for index, electric_field_file in enumerate(row_data_files):
         print("Reading field file: %s" % electric_field_file)
         field_data_file = h5py.File(electric_field_file, "r")
