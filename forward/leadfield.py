@@ -8,31 +8,52 @@ import nipype.pipeline.engine as pe          # pypeline engine
 from nipype.interfaces.gmsh import GetDP
 
 
-def check_potential(voltage_table_file):
+def check_potential(table_files):
     import numpy as np
+    from nipype.utils.filemanip import split_filename
+    import h5py
+    import os.path as op
+
     '''
     Assess sanity check data to make sure potential at source / sink electrodes
     are 1 and -1 Volts, respectively.
     '''
 
-    potential = np.loadtxt(voltage_table_file)
+    field_filename = "e_brain"
+    voltage_filename = "v_elec"
+
+    if isinstance(table_files, str):
+        table_files = [table_files]
+
+    field_file = ''
+    voltage_table_file = ''
+
+    for in_file in table_files:
+        _, name, _ = split_filename(in_file)
+        if name.rfind(field_filename) >= 0:
+            field_file = in_file
+            electric_field = np.loadtxt(field_file)
+            out_hdf5_file = op.abspath(name + ".hdf5")
+
+        elif name.rfind(voltage_filename) >= 0:
+            voltage_table_file = in_file
+            potential = np.loadtxt(voltage_table_file)
+
+    if not voltage_table_file or not field_file:
+        raise Exception
+
+    ###############
     # Placeholder for now
     sane = True
-
     if not sane:
         raise Exception("Sanity check on potential failed")
+    ###############
 
-    import h5py
-    from nipype.utils.filemanip import split_filename
-    import os.path as op
-    _, name, _ = split_filename(voltage_table_file)
-    out_file = op.abspath(name + ".hdf5")
-    f = h5py.File(out_file, "w")
-    dset = f.create_dataset("mydata", potential.shape, dtype="f", compression="lzf")
-    dset[...] = potential
+    f = h5py.File(out_hdf5_file, "w")
+    dset = f.create_dataset("e_field", electric_field.shape, dtype="f", compression="lzf")
+    dset[...] = electric_field
     f.close()
-
-    return out_file
+    return out_hdf5_file
 
 
 def write_pro_file(mesh_file, conductivity_tensor_included, source_index, ground_index, electrode_name_file, orig_pro_file=None):
@@ -71,6 +92,14 @@ def write_pro_file(mesh_file, conductivity_tensor_included, source_index, ground
 
 
 def combine_leadfield_rows(row_data_files, source_indices):
+    import h5py
+    from nipype.utils.filemanip import split_filename
+    import os.path as op
+    import numpy as np
+    import ipdb
+
+    data_name = "e_field"
+    ipdb.set_trace()
     '''
     Read electric field results files and append into matrix
     '''
@@ -79,18 +108,21 @@ def combine_leadfield_rows(row_data_files, source_indices):
     '''
     The number M is the total non-ground recording sites
     '''
-    M = len(src_electrodes)
+    M = len(source_indices)
 
     '''
     The number N is the total elements in the mesh file
     '''
-    num_nodes, num_elements = get_num_nodes_elements(mesh_file)
-    N = num_elements
+    field_data_file = h5py.File(row_data_files[0], "r")
+    data = field_data_file.get(data_name)
+    electric_field = data.value
+    print(np.shape(electric_field[0]))
+    N = np.shape(electric_field[0])
+
     '''
     Pre-allocate the Lead Field matrix, which is N rows x M columns
     '''
     N = np.shape(electric_field)[0] * 3
-    L_e = np.empty((N, M))
 
     '''
     Write a single row in the lead field matrix (L_e)
@@ -98,20 +130,22 @@ def combine_leadfield_rows(row_data_files, source_indices):
     e.g.:
             [E1x E1y E1z E2x E2y E2z]
     '''
-    import h5py
-    from nipype.utils.filemanip import split_filename
-    import os.path as op
-    _, name, _ = split_filename(voltage_table_file)
-    out_file = op.abspath(name + ".hdf5")
-    f = h5py.File(out_file, "w")
-    dset = f.create_dataset("mydata", (N, M), dtype="f", compression="lzf")
-    for index, electric_field in enumerate(row_data_files):
+    name ="leadfield"
+    out_filename = op.abspath(name + ".hdf5")
+    out_leadfield_file = h5py.File(out_filename, "w")
+    dset = out_leadfield_file.create_dataset("leadfield", (N, M), dtype="f", compression="lzf")
+    ipdb.set_trace()
+    for index, electric_field_file in enumerate(row_data_files):
+        print("Reading field file: %s" % electric_field_file)
+        field_data_file = h5py.File(electric_field_file, "r")
+        data = field_data_file.get(data_name)
+        electric_field = data.value
         src_id = source_indices[index]
-        dset[:,src_id] = np.ravel(electric_field[:, -3:])
+        dset[:,src_id-1] = np.ravel(electric_field[:, -3:])
 
-    f.close()
-    print("Saved leadfield matrix as %s" % f)
-    return leadfield_matrix_file
+    out_leadfield_file.close()
+    print("Saved leadfield matrix as %s" % out_filename)
+    return out_filename
 
 
 def get_electrode_indices(electrode_name_file, marker_list, ground_electrode="IZ"):
@@ -127,6 +161,7 @@ def get_electrode_indices(electrode_name_file, marker_list, ground_electrode="IZ
         elec_indices.remove(mark_ind)
 
     ground_index = electrode_namelist.index(ground_electrode)
+    elec_indices.remove(ground_index)
     return elec_indices, ground_index
 
 
@@ -161,12 +196,15 @@ def create_forward_model_workflow(name, conductivity_tensor_included=False):
     run_forward_model = pe.MapNode(interface=GetDP(), name="run_forward_model",
                                    iterfield=["problem_file"])
     run_forward_model.inputs.solve = "Electrostatics"
-    run_forward_model.inputs.binary_output_files = True
+    #run_forward_model.inputs.binary_output_files = True #for debugging
+    run_forward_model.inputs.binary_output_files = False #for debugging
+    run_forward_model.inputs.out_table_filenames = ["v_elec", "e_brain"]
+    run_forward_model.inputs.out_pos_filenames = ["v", "j", "e"]
 
     # Sanity check for results of forward model for each electrode
     sanity_check_voltage_interface = util.Function(
         input_names=["table_files"],
-        output_names=["row_data_file"], function=check_potential)
+        output_names=["out_hdf5_file"], function=check_potential)
 
     run_sanity_check = pe.MapNode(interface=sanity_check_voltage_interface,
                                   iterfield=["table_files"], name="run_sanity_check")
@@ -214,7 +252,9 @@ def create_forward_model_workflow(name, conductivity_tensor_included=False):
     # Now all the MapNodes are combined again to provide a list of
     # row_data_files to the create_leadfield interface
     workflow.connect(
-        [(run_sanity_check, create_leadfield, [("row_data_file", "row_data_files")])])
+        [(run_sanity_check, create_leadfield, [("out_hdf5_file", "row_data_files")])])
+    workflow.connect(
+        [(get_elec_indices, create_leadfield, [("electrode_indices", "source_indices")])])
     workflow.connect(
         [(create_leadfield, outputnode, [("leadfield_matrix_file", "leadfield")])])
     return workflow

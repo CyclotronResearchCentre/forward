@@ -4,6 +4,7 @@ import os.path as op
 import subprocess
 from forward.electrodes import rewrite_mesh_with_electrodes
 
+
 def create_sphere(radius, vol_id, lc=10, out_file="newsphere.msh"):
     f = open(op.abspath(out_file), "w")
     f.write("lc = %f;\n" % lc)
@@ -104,9 +105,10 @@ def add_sensors(electrode_location_file, mesh_file, radii):
     points = np.max(radii) * points
     newelec = op.abspath("newelec.txt")
     np.savetxt(newelec, points, delimiter=",")
-    elec_name_file = op.abspath(op.basename(electrode_location_file) + "_names.txt")
+    elec_name_file = op.abspath(
+        op.basename(electrode_location_file) + "_names.txt")
     f = open(elec_name_file, "w")
-    for idx in range(0,len(points)):
+    for idx in range(0, len(points)):
         name = "vertex%03d" % (idx + 1)
         f.write("%s\n" % name)
     f.close()
@@ -121,10 +123,15 @@ def add_sensors(electrode_location_file, mesh_file, radii):
 
 
 def create_4_shell_model(radii=[85, 88, 92, 100], out_file='4shell.msh'):
+    import os
+    import os.path as op
+    from forward.sphere import (create_sphere, mesh_2D,
+                                merge_and_diff, add_sensors)
     assert(len(radii) == 4)
 
     characteristic_length = 5
-    electrode_location_file = op.join(os.environ["FWD_DIR"], "etc", "icosahedron42.txt")
+    electrode_location_file = op.join(
+        os.environ["FWD_DIR"], "etc", "icosahedron42.txt")
 
     brain = create_sphere(
         radii[0], 1, characteristic_length, out_file="brain_sphere.geo")
@@ -143,7 +150,8 @@ def create_4_shell_model(radii=[85, 88, 92, 100], out_file='4shell.msh'):
     skin_msh = mesh_2D(skin)
 
     mesh_file = merge_and_diff([brain_msh, csf_msh, skull_msh, skin_msh],
-                   ids_outside_inward=[4, 3, 2, 1], out_file=out_file)
+                               ids_outside_inward=[4, 3, 2, 1], out_file=out_file)
 
-    final_file, electrode_name_file = add_sensors(electrode_location_file, mesh_file, radii)
+    final_file, electrode_name_file = add_sensors(
+        electrode_location_file, mesh_file, radii)
     return final_file, electrode_name_file

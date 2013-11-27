@@ -124,17 +124,18 @@ PostProcessing {{
     {Name j; Value {Term {[sigma[] * (-{Grad v}) ]; In Omega; Jacobian Volume;}}}
     {Name e; Value {Term {[-{Grad v}]; In Omega; Jacobian Volume;}}}
     // Sanity check for electrode potential
-    //{Name v_elec; Value {Term {[{v}]; In Electrodes; Jacobian Volume;}}}
-    //{Name e_sphere; Value {Term {[-{Grad v}]; In GrayMatter; Jacobian Volume;}}}
+    {Name v_elec; Value {Term {[{v}]; In Electrodes; Jacobian Volume;}}}
+    {Name e_brain; Value {Term {[-{Grad v}]; In GrayMatter; Jacobian Volume;}}}
   }
 }}
 
 
 PostOperation v_j_e UsingPost Electrostatics_PostProcessing {
-  Print [v, OnElementsOf Omega, File "v_sphere.pos"];
-  Print [j, OnElementsOf Omega, File "j_sphere.pos"];
-  Print [e, OnElementsOf Omega, File "e_sphere.pos"];
-  //Print [v_elec, OnElementsOf Electrodes, File "v_elec_sphere.pos"];
-  //Print [e_sphere, OnElementsOf GrayMatter, File "e_sphere.pos" ];
+  Print [v, OnElementsOf Omega, File "v.pos"];
+  Print [j, OnElementsOf Omega, File "j.pos"];
+  Print [e, OnElementsOf Omega, File "e.pos"];
+  
+  Print [v_elec, OnElementsOf Electrodes, Depth 0, Format SimpleTable, File "v_elec.txt"];
+  Print [e_brain, OnElementsOf GrayMatter,  Depth 0, Format SimpleTable, File "e_brain.txt" ];
 }
 //End of File
