@@ -193,8 +193,7 @@ def create_forward_model_workflow(name, conductivity_tensor_included=False):
     run_forward_model = pe.MapNode(interface=GetDP(), name="run_forward_model",
                                    iterfield=["problem_file"])
     run_forward_model.inputs.solve = "Electrostatics"
-    #run_forward_model.inputs.binary_output_files = True #for debugging
-    run_forward_model.inputs.binary_output_files = False #for debugging
+    run_forward_model.inputs.binary_output_files = True #for debugging
     run_forward_model.inputs.out_table_filenames = ["v_elec", "e_brain"]
     run_forward_model.inputs.out_pos_filenames = ["v", "j", "e"]
 

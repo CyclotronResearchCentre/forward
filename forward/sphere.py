@@ -63,7 +63,6 @@ def mesh_2D(in_file):
 
 def merge_and_diff(in_files, ids_outside_inward, out_file):
     merge_script = op.abspath("merge.geo")
-    n = len(ids_outside_inward) - 1
     f = open(merge_script, "w")
     f.write("Mesh.Algorithm3D = 4;\n")
     f.write("Mesh.Optimize = 1;\n")
@@ -103,8 +102,8 @@ def merge_and_diff(in_files, ids_outside_inward, out_file):
 def add_sensors(electrode_location_file, mesh_file, radii):
     points = np.loadtxt(electrode_location_file, delimiter=",")
     points = np.max(radii) * points
-    newelec = op.abspath("newelec.txt")
-    np.savetxt(newelec, points, delimiter=",")
+    new_electrode_location_file = op.abspath("electrode_locations.txt")
+    np.savetxt(new_electrode_location_file, points, delimiter=",")
     elec_name_file = op.abspath(
         op.basename(electrode_location_file) + "_names.txt")
     f = open(elec_name_file, "w")
@@ -115,43 +114,42 @@ def add_sensors(electrode_location_file, mesh_file, radii):
 
     print('Rewriting mesh with sensors')
     out_file = rewrite_mesh_with_electrodes(
-        newelec,
+        new_electrode_location_file,
         electrode_name_file=elec_name_file,
         mesh_file=mesh_file,
         mesh_id=1004)
-    return op.abspath(out_file), elec_name_file
+    return op.abspath(out_file), elec_name_file, new_electrode_location_file
 
 
-def create_4_shell_model(radii=[85, 88, 92, 100], out_file='4shell.msh'):
-    import os
-    import os.path as op
+def create_4_shell_model(electrode_location_file, radii=[85, 88, 92, 100], out_file='4shell.msh'):
     from forward.sphere import (create_sphere, mesh_2D,
                                 merge_and_diff, add_sensors)
     assert(len(radii) == 4)
 
-    characteristic_length = 5
-    electrode_location_file = op.join(
-        os.environ["FWD_DIR"], "etc", "icosahedron42.txt")
+    characteristic_length_brain = 5
+    characteristic_length_csf = 5
+    characteristic_length_skull = 3
+    characteristic_length_skin = 3
 
     brain = create_sphere(
-        radii[0], 1, characteristic_length, out_file="brain_sphere.geo")
+        radii[0], 1, characteristic_length_brain, out_file="brain_sphere.geo")
     brain_msh = mesh_2D(brain)
 
-    csf = create_sphere(radii[1], 2, characteristic_length,
+    csf = create_sphere(radii[1], 2, characteristic_length_csf,
                         out_file="csf_sphere.geo")
     csf_msh = mesh_2D(csf)
 
     skull = create_sphere(
-        radii[2], 3, characteristic_length, out_file="skull_sphere.geo")
+        radii[2], 3, characteristic_length_skull, out_file="skull_sphere.geo")
     skull_msh = mesh_2D(skull)
 
     skin = create_sphere(
-        radii[3], 4, characteristic_length, out_file="skin_sphere.geo")
+        radii[3], 4, characteristic_length_skin, out_file="skin_sphere.geo")
     skin_msh = mesh_2D(skin)
 
     mesh_file = merge_and_diff([brain_msh, csf_msh, skull_msh, skin_msh],
                                ids_outside_inward=[4, 3, 2, 1], out_file=out_file)
 
-    final_file, electrode_name_file = add_sensors(
+    final_file, electrode_name_file, electrode_location_file = add_sensors(
         electrode_location_file, mesh_file, radii)
-    return final_file, electrode_name_file
+    return final_file, electrode_name_file, electrode_location_file

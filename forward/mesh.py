@@ -1,4 +1,6 @@
 import numpy as np
+import logging
+logger = logging.getLogger('electrode')
 
 def read_mesh(mesh_filename, elements_to_consider):
     from nipype import logging
@@ -34,6 +36,8 @@ def read_mesh(mesh_filename, elements_to_consider):
                 #    The first one is a tag, and the last 4 are node numbers.
                 line = mesh_file.readline()
                 elem_data = line.split()
+                if isinstance(elements_to_consider, int):
+                    elements_to_consider = [elements_to_consider]
                 if int(elem_data[3]) in elements_to_consider:
                     polygons.append(np.array(elem_data))
 
@@ -54,7 +58,7 @@ def read_mesh(mesh_filename, elements_to_consider):
         poly_data["centroid"] = np.mean(poly_data["node_locations"],0)
 
         mesh_data.append(poly_data)
-        iflogger.info("%3.3f%%" % (float(idx)/num_polygons*100.0))
+        #iflogger.info("%3.3f%%" % (float(idx)/num_polygons*100.0))
 
     return mesh_data
 
@@ -407,3 +411,142 @@ def decouple_outout_cutin_fn(outer_mesh, inner_mesh):
         outer_mesh = clean_mesh_fn(outer_mesh)
         intersections = check_intersecting_fn(outer_mesh, inner_mesh)
     return outer_mesh
+
+
+def get_closest_element_index(point, mesh_filename, mesh_id):
+    import numpy as np
+    from scipy.spatial.distance import cdist
+    import os.path as op
+    import time
+    start_time = time.time()
+    mesh_file = open(mesh_filename, 'r')
+    closest_element_idx = 0
+    n_brain_elem = 0
+    nodes_of_potential_elements = []
+    potential_elem_ids = []
+    while True:
+        line = mesh_file.readline()
+
+        if line == '$Nodes\n':
+            line = mesh_file.readline()
+            number_of_nodes = int(line)
+            vertices = []
+
+            for i in xrange(0, number_of_nodes):
+                line = mesh_file.readline()
+                node_data = line.split()
+                vert = node_data
+                vertices.append(vert)
+
+            vertices = np.array((vertices))
+
+            dist = cdist(point, vertices[:, 1:], 'euclidean')
+
+            min_dist_by_elec = dist.min(axis=1)
+
+            closest_nodes = []
+            for idx, min_dist in enumerate(min_dist_by_elec):
+                closest = np.where(dist[idx] == min_dist)[0][0]
+                closest_idx = vertices[closest][0]
+                closest_nodes.append(closest_idx)
+
+            closest_nodes = np.array(closest_nodes)
+            logger.info("Closest Node IDs")
+            logger.info(closest_nodes)
+
+        elif line == '$Elements\n':
+            line = mesh_file.readline()
+
+            number_of_elements = int(line)
+            for i in xrange(0, number_of_elements):
+                line = mesh_file.readline()
+                elem_data = line.split()
+                if int(elem_data[3]) == mesh_id:
+                    n_brain_elem = n_brain_elem + 1
+                    nodes = np.array(elem_data[5:])
+                    mask = np.in1d(nodes, closest_nodes)
+                    if np.sum(mask) >= 1:
+                        # Needs to be reworked to give the single closest element!
+                        nodes_of_potential_elements.append(nodes)
+                        potential_elem_ids.append(n_brain_elem)
+                        closest_element_idx = n_brain_elem
+
+        elif line == '$EndElementData\n' or len(line) == 0:
+            break
+
+    #get_closest_element(vertices, nodes_of_potential_elements)
+    mesh_file.close()
+    elapsed_time = time.time() - start_time
+    print(elapsed_time)
+    return closest_element_idx, number_of_elements, n_brain_elem
+
+def get_closest_element_to_point(mesh_filename, elements_to_consider, point):
+    from nipype import logging
+    from scipy.spatial.distance import cdist
+    iflogger = logging.getLogger('interface')
+
+    iflogger.info("Reading mesh file: %s" % mesh_filename)
+    iflogger.info("Mesh ids to consider: %s" % elements_to_consider)
+
+    mesh_file = open(mesh_filename, 'r')
+    while True:
+        line = mesh_file.readline()
+        if '$Nodes' in line:
+            line = mesh_file.readline()
+            number_of_nodes = int(line)
+            iflogger.info("%d nodes in mesh" % number_of_nodes)
+            vertex_list = []
+
+            for i in xrange(0, number_of_nodes):
+                line = mesh_file.readline()
+                node_data = line.split()
+                vertex_list.append(node_data)
+
+            vertex_list = np.array((vertex_list)).astype(float)
+            iflogger.info("Done reading nodes")
+
+        elif '$Elements' in line:
+            line = mesh_file.readline()
+            number_of_elements = int(line)
+            iflogger.info("%d elements in mesh" % number_of_elements)
+            polygons = []
+            for i in xrange(0, number_of_elements):
+                # -- If all elements were quads, each line has 10 numbers.
+                #    The first one is a tag, and the last 4 are node numbers.
+                line = mesh_file.readline()
+                elem_data = line.split()
+                if isinstance(elements_to_consider, int):
+                    elements_to_consider = [elements_to_consider]
+                if int(elem_data[3]) in elements_to_consider:
+                    polygons.append(np.array(elem_data))
+
+            polygons = np.array((polygons))
+            iflogger.info("Done reading elements")
+            break
+    
+    # Loop through and assign points to each polygon, save as a dictionary
+    mesh_data = []
+    num_polygons = len(polygons)
+    iflogger.info("%d polygons found with mesh IDs: %s" % (num_polygons, elements_to_consider))
+    min_dist = 200
+    for idx, polygon in enumerate(polygons):
+        poly_data = {}
+        poly_data["element_id"] = int(polygon[0])
+        poly_data["number_of_points"] = get_num_nodes_from_elm_type(polygon[1])
+        poly_data["node_ids"] = polygon[-poly_data["number_of_points"]:].astype(int)
+        poly_data["node_locations"] = vertex_list[poly_data["node_ids"]-1][:,1:]
+        poly_data["centroid"] = np.mean(poly_data["node_locations"],0)
+
+        poly_data["distance_to_pt"] = dist = cdist(point, np.array([poly_data["centroid"]]), 'euclidean')
+        if dist <= min_dist:
+            min_dist = dist
+            closest_element_idx = poly_data["element_id"]
+            lf_idx = idx
+            closest_element_data = poly_data
+            centroid = poly_data["centroid"]
+
+
+        mesh_data.append(poly_data)
+        #iflogger.info("%3.3f%%" % (float(idx)/num_polygons*100.0))
+
+    return mesh_data, closest_element_idx, centroid, closest_element_data, lf_idx
