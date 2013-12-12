@@ -14,6 +14,7 @@ For the sphere we have no markers
 markers = []
 ground_electrode = 'vertex001'
 radii=[85, 88, 92, 100]
+
 electrode_location_file = op.join(os.environ["FWD_DIR"], "etc", "icosahedron42.txt")
 
 '''

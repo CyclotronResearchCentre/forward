@@ -76,10 +76,10 @@ def write_pro_file(mesh_file, conductivity_tensor_included, source_index, ground
         if len(line) == 0:
             break # EOF
         
-        if line.rfind('Anode = Region[') >= 0:
-            line = '  Anode = Region[' + str(ground_index+5000) + '];\n'
-        elif line.rfind('Cathode = Region[') >= 0:
-            line = '  Cathode = Region[' + str(source_index+5000) + '];\n'
+        if line.rfind('Sink = Region[') >= 0:
+            line = '  Sink = Region[' + str(ground_index+5000) + '];\n'
+        elif line.rfind('Source = Region[') >= 0:
+            line = '  Source = Region[' + str(source_index+5000) + '];\n'
         elif line.rfind('sigma[WhiteMatter_Cerebellum]') >= 0 and conductivity_tensor_included:
             line = "    sigma[WhiteMatter_Cerebellum] = TensorField[XYZ[]] #1 ? #1 : 0.33 ;//: 0.33*1e-3 ;\n"
         elif line.rfind('sigma[WhiteMatter_Cerebellum]') >= 0 and not conductivity_tensor_included:
@@ -96,7 +96,6 @@ def combine_leadfield_rows(row_data_files, source_indices):
     from nipype.utils.filemanip import split_filename
     import os.path as op
     import numpy as np
-
     data_name = "e_field"
     '''
     Read electric field results files and append into matrix

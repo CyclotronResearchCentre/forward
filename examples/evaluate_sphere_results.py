@@ -4,8 +4,11 @@ import h5py
 import numpy as np
 from numpy.linalg import norm
 import ipdb
+import nipype.pipeline.engine as pe          # pypeline engine
 from forward.mesh import get_closest_element_to_point
-
+from forward.analytical import FourShellAnalyticalModel
+from matplotlib.pyplot import plot, show, legend
+import matplotlib.pyplot as plt
 
 lf_filename = "leadfield.hdf5"
 leadfield_file = op.join(
@@ -22,7 +25,6 @@ analytical_solution = op.join(os.environ["FWD_DIR"], "etc", filename)
 lf_sphere = np.loadtxt(analytical_solution, delimiter=",")
 
 # Set the position of the probe dipole
-probe_dipole = np.array([[0, 0, 70]])
 mesh_filename = "4shell_elec.msh"
 elec_filename = "icosahedron42.txt_names.txt"
 elec_loc_fname = "electrode_locations.txt"
@@ -38,49 +40,130 @@ electrode_name_file = op.join(
 electrode_location_file = op.join(
     op.curdir, "sphere_datasink", "electrode_location_file", elec_loc_fname)
 mesh_id = 1001
-mesh_data, closest_element_idx, centroid, closest_element_data, lf_idx = get_closest_element_to_point(mesh_file, mesh_id, probe_dipole)
-lf_getdp = np.transpose(leadfield_matrix[lf_idx * 3:lf_idx * 3 + 3])
 
-# Re-reference to ground electrode
-#lf_sphere = lf_sphere - lf_sphere[ground_idx]
-print(lf_sphere[ground_idx])
-lf_sphere = lf_sphere - lf_sphere[ground_idx]
-lf_sphere = np.delete(lf_sphere, (ground_idx), axis=0)
 
-lf_getdp = lf_getdp * np.max(lf_sphere,0)/np.max(lf_getdp,0)
+def get_rdm_and_mags(mesh_file, mesh_id, probe_dipole, radii=[85,88,92,100], cond=[1, 1/20.0, 1/80.0, 1], n=42):
+    four = pe.Node(interface=FourShellAnalyticalModel(), name="four")
+    name = str(probe_dipole[0]).replace(" ","")
+    name = name.replace('[','')
+    name = name.replace(']','')
+    out_directory = op.abspath("dipole" + name)
+    if not op.exists(out_directory):
+        os.makedirs(out_directory)
+    four.base_dir = out_directory
+    four.inputs.probe_dipole = probe_dipole[0].tolist()
+    four.inputs.script = "pyscript.m"
+    four.inputs.sphere_radii = radii
+    four.inputs.shell_conductivity = cond
+    four.inputs.icosahedron_sides = n
+    four.inputs.fieldtrip_path = "/Developer/fieldtrip"
+    four.run()
+    analytical_solution = op.join(out_directory, "four", "analytical.txt")
+    # Re-reference to ground electrode
+    lf_sphere = np.loadtxt(analytical_solution, delimiter=",")
+    lf_sphere = lf_sphere - lf_sphere[ground_idx]
+    lf_sphere = np.delete(lf_sphere, (ground_idx), axis=0)
 
-rdms = np.empty((np.shape(lf_getdp)[1], 1))
-rows = np.shape(lf_getdp)[1]
-for idx in xrange(0, rows):
-    rdms[idx, :] = norm(lf_getdp[:, idx] / norm(lf_getdp[:, idx]) -
-                        lf_sphere[:, idx] / norm(lf_sphere[:, idx]))
 
-mags = np.divide(np.sqrt(np.sum(lf_getdp ** 2, 0)),
-                 np.sqrt(np.sum(lf_sphere ** 2, 0)) )
+    mesh_data, closest_element_idx, centroid, closest_element_data, lf_idx = get_closest_element_to_point(mesh_file, mesh_id, probe_dipole)
+    lf_getdp = np.transpose(leadfield_matrix[lf_idx * 3:lf_idx * 3 + 3])
 
-print("RDMs %s" % str(rdms))
-print("Mean RDMs %s" % str(np.mean(rdms)))
-print("MAGs %s" % str(mags))
-ipdb.set_trace()
+    openmeeg_solution = op.join(out_directory, "four", "openmeeg.txt")
+    lf_openmeeg = np.loadtxt(openmeeg_solution, delimiter=",")
+    try:
+        lf_openmeeg = lf_openmeeg - lf_openmeeg[ground_idx]
+        lf_openmeeg = np.delete(lf_openmeeg, (ground_idx), axis=0)
 
-from matplotlib.pyplot import plot, show, legend
-x_sph = plot(lf_sphere[:,0], label="X analytical")
-x_getdp = plot(lf_getdp[:,0], label="X GetDP")
-legend(bbox_to_anchor=(0., 1.02, 1., .102), loc=3,
-       ncol=2, mode="expand", borderaxespad=0.)
-show()
+        rdm_openmeeg = norm( lf_openmeeg / norm(lf_openmeeg) - lf_sphere / norm(lf_sphere) )
+        mag_openmeeg = np.divide(norm(lf_openmeeg),norm(lf_sphere))
+    except IndexError:
+        rdm_openmeeg = None
+        mag_openmeeg = None
 
-y_sph = plot(lf_sphere[:,1], label="Y analytical")
-y_getdp = plot(lf_getdp[:,1], label="Y GetDP")
-legend(bbox_to_anchor=(0., 1.02, 1., .102), loc=3,
-       ncol=2, mode="expand", borderaxespad=0.)
-show()
+    #norm_factor = np.max(lf_sphere,0)/np.max(lf_getdp,0)
+    #norm_factor = 7/50.
+    norm_factor = 0
+    #norm_factor = centroid
+    #lf_getdp = lf_getdp * norm_factor
+    #print("Scaling Factor:")
+    #print(norm_factor)
 
-z_sph = plot(lf_sphere[:,2], label="Z analytical")
-z_getdp = plot(lf_getdp[:,2], label="Z GetDP")
-legend(bbox_to_anchor=(0., 1.02, 1., .102), loc=3,
-       ncol=2, mode="expand", borderaxespad=0.)
-show()
+    rdms = np.empty((np.shape(lf_getdp)[1], 1))
+    rows = np.shape(lf_getdp)[1]
+    for idx in xrange(0, rows):
+        rdms[idx, :] = norm(lf_getdp[:, idx] / norm(lf_getdp[:, idx]) -
+                            lf_sphere[:, idx] / norm(lf_sphere[:, idx]))
+
+    rdm_singlevalue = norm( lf_getdp / norm(lf_getdp) - lf_sphere / norm(lf_sphere) )
+    
+
+    mags = np.divide(np.sqrt(np.sum(lf_getdp ** 2, 0)),
+                     np.sqrt(np.sum(lf_sphere ** 2, 0)) )
+    mag_singlevalue = np.divide(norm(lf_getdp),norm(lf_sphere))
+
+    print("RDMs %s" % str(rdms))
+    print rdm_singlevalue
+    #print("Mean RDMs %s" % str(np.mean(rdms)))
+    print("MAGs %s" % str(mags))
+    print mag_singlevalue
+    return (rdms, mags, rdm_singlevalue, mag_singlevalue, rdm_openmeeg,
+        mag_openmeeg, norm_factor, lf_getdp, lf_sphere)
+
+results = []
+radii=[85,88,92,100]
+#radii = (np.array(radii)/2).tolist()
+cond=[1, 1/20.0, 1/80.0, 1]
+n=42
+#loop = False
+loop = True
+
+probe_dipole = np.array([[0, 0, 70]])
+(rdms, mags, rdm_sv, mag_sv,
+    rdm_OMEEG, mag_OMEEG, norm_factor, lf_getdp, lf_sphere) = get_rdm_and_mags(mesh_file, mesh_id, probe_dipole, radii, cond, n)
+
+import ipdb
+#ipdb.set_trace()
+
+if loop:
+    print("Looping through dipole positions:")
+    distances = [10, 20, 40, 60, 70, 75, 80, 82, 84, 85]
+    #distances = (np.array(distances)/2).tolist()
+
+    distances.reverse()
+    norms = []
+    print(distances)
+    for idx in distances:
+        print(idx)
+        probe_dipole = np.array([[0, 0, idx]])
+        rdms, mags, rdm_sv, mag_sv, rdm_OMEEG, mag_OMEEG, norm_factor, lf_getdp, lf_sphere = get_rdm_and_mags(mesh_file, mesh_id, probe_dipole, radii, cond, n)
+        results.append((idx, rdm_sv, mag_sv, rdm_OMEEG, mag_OMEEG))
+        norms.append(norm_factor)
+
+    res = np.array(results)
+    max_r = np.max(radii)
+
+    # Plot RDMs
+    plot(res[:,0], res[:,1], label="GetDP")
+    plot(res[:,0], res[:,3], label="OpenMEEG")
+    plt.xlabel('Dipole position (from 0 in Z dir, max radius = %f)' % max_r, fontsize=14)
+    plt.ylabel('Relative difference measure (RDM)', fontsize=14)
+    for r in radii:
+        plt.axvline(x=r,ymin=0,ymax=1,color="r")
+    legend(bbox_to_anchor=(0., 1.02, 1., .102), loc=3,
+            ncol=2, mode="expand", borderaxespad=0.)
+    show()
+
+
+    # Plot MAGs
+    plot(res[:,0], res[:,2], label="GetDP")
+    plot(res[:,0], res[:,4], label="OpenMEEG")
+    plt.xlabel('Dipole position (from 0 in Z, max radius = %f)' % max_r, fontsize=14)
+    plt.ylabel('Magnification errors (MAG)', fontsize=14)
+    for r in radii:
+        plt.axvline(x=r,ymin=0,ymax=1,color="r")
+    legend(bbox_to_anchor=(0., 1.02, 1., .102), loc=3,
+            ncol=2, mode="expand", borderaxespad=0.)
+    show()
 
 def write_gmsh_pos_file(scalars, electrode_location_file, ground_idx, scalar_name="RDM"):
     out_file = scalar_name + ".pos"
@@ -97,3 +180,23 @@ def write_gmsh_pos_file(scalars, electrode_location_file, ground_idx, scalar_nam
     return out_file
 
 #write_gmsh_pos_file(rdms[:, 0].tolist(), electrode_location_file, ground_idx)
+
+
+## For testing purposes
+# x_sph = plot(lf_sphere[:,0], label="X analytical")
+# x_getdp = plot(lf_getdp[:,0], label="X GetDP")
+# legend(bbox_to_anchor=(0., 1.02, 1., .102), loc=3,
+#        ncol=2, mode="expand", borderaxespad=0.)
+# show()
+
+# y_sph = plot(lf_sphere[:,1], label="Y analytical")
+# y_getdp = plot(lf_getdp[:,1], label="Y GetDP")
+# legend(bbox_to_anchor=(0., 1.02, 1., .102), loc=3,
+#        ncol=2, mode="expand", borderaxespad=0.)
+# show()
+
+# z_sph = plot(lf_sphere[:,2], label="Z analytical")
+# z_getdp = plot(lf_getdp[:,2], label="Z GetDP")
+# legend(bbox_to_anchor=(0., 1.02, 1., .102), loc=3,
+#        ncol=2, mode="expand", borderaxespad=0.)
+# show()

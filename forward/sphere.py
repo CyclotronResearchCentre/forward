@@ -91,6 +91,7 @@ def merge_and_diff(in_files, ids_outside_inward, out_file):
     f.write("Physical Volume(1001) = { 1 }; //brain volume\n")
 
     f.close()
+    out_file = op.abspath(out_file)
     call_list = ["gmsh", merge_script, "-v", "0", "-3",
                  "-format", "msh", "-o", out_file]
     print(" ".join(call_list))
@@ -113,6 +114,7 @@ def add_sensors(electrode_location_file, mesh_file, radii):
     f.close()
 
     print('Rewriting mesh with sensors')
+    print(new_electrode_location_file, elec_name_file, mesh_file)
     out_file = rewrite_mesh_with_electrodes(
         new_electrode_location_file,
         electrode_name_file=elec_name_file,
@@ -126,10 +128,10 @@ def create_4_shell_model(electrode_location_file, radii=[85, 88, 92, 100], out_f
                                 merge_and_diff, add_sensors)
     assert(len(radii) == 4)
 
-    characteristic_length_brain = 5
-    characteristic_length_csf = 5
-    characteristic_length_skull = 3
-    characteristic_length_skin = 3
+    characteristic_length_brain = 3
+    characteristic_length_csf = 7
+    characteristic_length_skull = 7
+    characteristic_length_skin = 7
 
     brain = create_sphere(
         radii[0], 1, characteristic_length_brain, out_file="brain_sphere.geo")
@@ -150,6 +152,7 @@ def create_4_shell_model(electrode_location_file, radii=[85, 88, 92, 100], out_f
     mesh_file = merge_and_diff([brain_msh, csf_msh, skull_msh, skin_msh],
                                ids_outside_inward=[4, 3, 2, 1], out_file=out_file)
 
-    final_file, electrode_name_file, electrode_location_file = add_sensors(
+    mesh_file, electrode_name_file, electrode_location_file = add_sensors(
         electrode_location_file, mesh_file, radii)
-    return final_file, electrode_name_file, electrode_location_file
+    return mesh_file, electrode_name_file, electrode_location_file
+

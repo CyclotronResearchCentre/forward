@@ -1,4 +1,3 @@
-import os
 import os.path as op
 from nipype.interfaces.base import File, Directory, traits
 from nipype.interfaces.matlab import MatlabCommand, MatlabInputSpec
@@ -13,11 +12,12 @@ class FourShellAnalyticalModelInputSpec(MatlabInputSpec):
         traits.Float, exists=True, minlen=4, maxlen=4, mandatory=True)
     icosahedron_sides = traits.Enum([42, 162, 642], mandatory=True)
     fieldtrip_path = Directory(exists=True, desc='Fieldtrip directory')
-    out_file = File('analytical.txt', usedefault=True)
-
+    out_analytical_file = File('analytical.txt', usedefault=True)
+    out_openmeeg_file = File('openmeeg.txt', usedefault=True)
 
 class FourShellAnalyticalModelOutputSpec(MatlabInputSpec):
-    out_file = File(exists=True)
+    out_analytical_file = File(exists=True)
+    out_openmeeg_file = File(exists=True)
     matlab_output = traits.Str()
 
 
@@ -50,7 +50,8 @@ class FourShellAnalyticalModel(MatlabCommand):
         sphere_radii = "[" + " ".join(radii_list) + ']'
         shell_conductivity = "[" + " ".join(cond_list) + ']'
         icosahedron_sides = self.inputs.icosahedron_sides
-        out_file = op.abspath(self.inputs.out_file)
+        out_analytical_file = op.abspath(self.inputs.out_analytical_file)
+        out_openmeeg_file = op.abspath(self.inputs.out_openmeeg_file)
 
         script = """
 
@@ -69,11 +70,33 @@ class FourShellAnalyticalModel(MatlabCommand):
     end
 
     vol_sphere.r = r;
-    vol_sphere.c = c;
+    vol_sphere.cond = c;
     lf_sphere = ft_compute_leadfield(pos, sens, vol_sphere);
     dlmwrite('%s', lf_sphere)
-    
-        """ % (fieldtrip_path, probe_dipole, sphere_radii, shell_conductivity, icosahedron_sides, out_file)
+
+    %% Create OpenMEEG solution
+    %% Create a triangulated mesh, the first boundary is inside
+
+    vol = [];
+    for ii=1:length(r)
+        vol.bnd(ii).pnt = pnt * r(ii);
+        vol.bnd(ii).tri = tri;
+    end
+
+    cfg.method = 'openmeeg';
+    cfg.conductivity = c;
+    vol1 = ft_prepare_bemmodel(cfg, vol);
+    vol_bem = vol1;
+    cfg.vol = vol_bem;
+    cfg.grid.pos = pos;
+    cfg.elec = sens;
+
+    grid = ft_prepare_leadfield(cfg);
+    lf_openmeeg = grid.leadfield{1};
+    dlmwrite('%s', lf_openmeeg)
+
+        """ % (fieldtrip_path, probe_dipole, sphere_radii, shell_conductivity, icosahedron_sides,
+            out_analytical_file, out_openmeeg_file)
         return script
 
     def run(self, **inputs):
@@ -87,5 +110,6 @@ class FourShellAnalyticalModel(MatlabCommand):
 
     def _list_outputs(self):
         outputs = self._outputs().get()
-        outputs['out_file'] = os.path.abspath(self.inputs.out_file)
+        outputs['out_analytical_file'] = op.abspath(self.inputs.out_analytical_file)
+        outputs['out_openmeeg_file'] = op.abspath(self.inputs.out_openmeeg_file)
         return outputs
