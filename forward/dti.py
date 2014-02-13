@@ -1,22 +1,87 @@
 import nipype.interfaces.utility as util     # utility
 import nipype.pipeline.engine as pe          # pypeline engine
 import nipype.interfaces.fsl as fsl
+import nipype.interfaces.freesurfer as fs
 import nipype.interfaces.dipy as dipy
-import shutil
+import os, os.path as op
 
 from nipype import logging
 iflogger = logging.getLogger('interface')
 
-fsl.FSLCommand.set_default_output_type('NIFTI')
+fsl.FSLCommand.set_default_output_type('NIFTI_GZ')
+
+def nifti_tensors_to_gmsh(in_file, fa_file, threshold=0.8, lower_triangular=True):
+    import numpy as np
+    import nibabel as nb
+    from nipype.utils.filemanip import split_filename
+    import os.path as op
+    tensor_image = nb.load(in_file)
+    fa_image = nb.load(fa_file)
+    path, name, ext = split_filename(in_file)
+    out_file = op.abspath(name + '.pos')
+    f = open(out_file,'w')
+    print 'Writing tensors to {f}'.format(f=out_file)
+    tensor_data = tensor_image.get_data()
+    orig_t = tensor_data.copy()
+    tensor_data = np.flipud(tensor_data)
+
+    tensor_data[:,:,:,1]*=-1
+    if lower_triangular:
+        tensor_data[:,:,:,3]*=-1
+    else:
+        tensor_data[:,:,:,2]*=-1
+
+    fa_data = fa_image.get_data()
+    fa_data = flipud(fa_data)
+    header = tensor_image.get_header()
+    zooms = header.get_zooms()
+    vx = zooms[0]
+    vy = zooms[1]
+    vz = zooms[2]
+    halfx = vx*np.shape(tensor_data)[0]/2.0
+    halfy = vy*np.shape(tensor_data)[1]/2.0
+    halfz = vz*np.shape(tensor_data)[2]/2.0
+    max_x, max_y, max_z, _ = np.shape(tensor_data)
+    view_str = 'View "Diffusion tensor field Fractional Anisotropy >= %f"{' % (threshold)
+    f.write(view_str + '\n')
+    if lower_triangular:
+        for x in range(0,max_x):
+            for y in range(0,max_y):
+                for z in range(0,max_z):
+                    T = tensor_data[x,y,z]
+                    if fa_data[x,y,z] >= threshold and fa_data[x,y,z] <= 1:
+                        pt_str = ('TP(%3.2f,%3.2f,%3.2f){%e,%e,%e,%e,%e,%e,%e,%e,%e};' % (x*vx-halfx, y*vy-halfy, z*vz-halfz, 
+                    T[0], T[1], T[3],
+                    T[1], T[2], T[4],
+                    T[3], T[4], T[5]))
+                        f.write(pt_str + '\n')
+    else:
+        for x in range(0,max_x):
+            for y in range(0,max_y):
+                for z in range(0,max_z):
+                    T = tensor_data[x,y,z]
+                    if fa_data[x,y,z] >= threshold and fa_data[x,y,z] <= 1:
+                        pt_str = ('TP(%3.2f,%3.2f,%3.2f){%e,%e,%e,%e,%e,%e,%e,%e,%e};' % (x*vx-halfx, y*vy-halfy, z*vz-halfz, 
+                    T[0], T[1], T[2],
+                    T[1], T[3], T[4],
+                    T[2], T[4], T[5]))
+                        f.write(pt_str + '\n')
+
+    closing_str = '};'
+    f.write(closing_str + '\n')
+    f.close()
+    return out_file
 
 
 def split_tissue_classes_fn(in_files):
     for in_file in in_files:
         if 'seg_0' in in_file:
-            gray_matter = in_file
+            csf = in_file
         elif 'seg_1' in in_file:
+            gray_matter = in_file
+        elif 'seg_2' in in_file:
             white_matter = in_file
-    return gray_matter, white_matter
+    return gray_matter, white_matter, csf
 
 
 def calc_scale_factor_fn(white_matter, gray_matter):
@@ -25,7 +90,7 @@ def calc_scale_factor_fn(white_matter, gray_matter):
     conductivity_GM = 0.276  # [S/m]
 
     scale_factor = ((white_matter * conductivity_WM + gray_matter * conductivity_GM) /
-                   ((np.power(white_matter, 2) + np.power(gray_matter, 2)) * 1000))
+                   ((np.power(white_matter, 2) + np.power(gray_matter, 2))) * 1000)
     return scale_factor
 
 
@@ -36,10 +101,46 @@ def create_get_scale_factor_workflow(name):
         name="inputnode")
     split_tissue_classes_interface = util.Function(input_names=["in_files"],
                                                    output_names=[
-                                                       "gray_matter", "white_matter"],
+                                                       "gray_matter", "white_matter", "csf"],
                                                    function=split_tissue_classes_fn)
     split_tissue_classes = pe.Node(
         interface=split_tissue_classes_interface, name='split_tissue_classes')
+
+    mult_EV1_GM = pe.Node(
+        interface=fsl.MultiImageMaths(), name='mult_EV1_GM')
+    mult_EV1_GM.inputs.op_string = "-mul %s -mul 1000"
+    mult_EV1_GM.inputs.out_file = "GM1.nii.gz"
+
+    mult_EV2_GM = mult_EV1_GM.clone("mult_EV2_GM")
+    mult_EV2_GM.inputs.out_file = "GM2.nii.gz"
+
+    mult_EV3_GM = mult_EV1_GM.clone("mult_EV3_GM")
+    mult_EV3_GM.inputs.out_file = "GM3.nii.gz"
+
+    GM_EV_merge = pe.Node(interface=util.Merge(2), name='GM_EV_merge')
+
+    mult_EV1_WM = mult_EV1_GM.clone("mult_EV1_WM")
+    mult_EV1_WM.inputs.out_file = "WM1.nii.gz"
+    
+    mult_EV2_WM = mult_EV1_GM.clone("mult_EV2_WM")
+    mult_EV2_WM.inputs.out_file = "WM2.nii.gz"
+    
+    mult_EV3_WM = mult_EV1_GM.clone("mult_EV3_WM")
+    mult_EV3_WM.inputs.out_file = "WM3.nii.gz"
+
+    WM_EV_merge = pe.Node(interface=util.Merge(2), name='WM_EV_merge')
+
+    multiply_GM = pe.Node(
+        interface=fsl.MultiImageMaths(), name='multiply_GM')
+    multiply_GM.inputs.op_string = "-mul %s -mul %s"
+    multiply_GM.inputs.out_file = "GM.nii.gz"
+
+    multiply_WM = multiply_GM.clone("multiply_WM")
+    multiply_WM.inputs.out_file = "WM.nii.gz"
+
+    GM_stats = pe.Node(interface=fsl.ImageStats(), name='GM_stats')
+    GM_stats.inputs.op_string = '-M'
+    WM_stats = GM_stats.clone('WM_stats')
 
     calc_scale_factor_interface = util.Function(
         input_names=["gray_matter", "white_matter"],
@@ -48,55 +149,28 @@ def create_get_scale_factor_workflow(name):
     calc_scale_factor = pe.Node(
         interface=calc_scale_factor_interface, name='calc_scale_factor')
 
-    mult_EV1_GM = pe.Node(
-        interface=fsl.MultiImageMaths(), name='mult_EV1_GM')
-    mult_EV1_GM.inputs.op_string = "-mul %s -mul 1000"
-    mult_EV2_GM = mult_EV1_GM.clone("mult_EV2_GM")
-    mult_EV3_GM = mult_EV1_GM.clone("mult_EV3_GM")
-    GM_EV_merge = pe.Node(interface=util.Merge(2), name='GM_EV_merge')
-
-    mult_EV1_WM = mult_EV1_GM.clone("mult_EV1_WM")
-    mult_EV2_WM = mult_EV1_GM.clone("mult_EV2_WM")
-    mult_EV3_WM = mult_EV1_GM.clone("mult_EV3_WM")
-    WM_EV_merge = pe.Node(interface=util.Merge(2), name='WM_EV_merge')
-
-    multiply_GM = pe.Node(
-        interface=fsl.MultiImageMaths(), name='multiply_GM')
-    multiply_GM.inputs.op_string = "-mul %s -mul %s"
-    multiply_WM = multiply_GM.clone("multiply_WM")
-
-    GM_stats = pe.Node(interface=fsl.ImageStats(), name='GM_stats')
-    GM_stats.inputs.op_string = '-M'
-    WM_stats = GM_stats.clone('WM_stats')
-
     workflow = pe.Workflow(name=name)
 
     workflow.connect(
         [(inputnode, split_tissue_classes, [("tissue_class_files", "in_files")])])
 
     workflow.connect([(inputnode, mult_EV1_GM, [("L1", "in_file")])])
-    workflow.connect(
-        [(split_tissue_classes, mult_EV1_GM, [("gray_matter", "operand_files")])])
+    workflow.connect([(split_tissue_classes, mult_EV1_GM, [("gray_matter", "operand_files")])])
 
     workflow.connect([(inputnode, mult_EV2_GM, [("L2", "in_file")])])
-    workflow.connect(
-        [(split_tissue_classes, mult_EV2_GM, [("gray_matter", "operand_files")])])
+    workflow.connect([(split_tissue_classes, mult_EV2_GM, [("gray_matter", "operand_files")])])
 
     workflow.connect([(inputnode, mult_EV3_GM, [("L3", "in_file")])])
-    workflow.connect(
-        [(split_tissue_classes, mult_EV3_GM, [("gray_matter", "operand_files")])])
+    workflow.connect([(split_tissue_classes, mult_EV3_GM, [("gray_matter", "operand_files")])])
 
     workflow.connect([(inputnode, mult_EV1_WM, [("L1", "in_file")])])
-    workflow.connect(
-        [(split_tissue_classes, mult_EV1_WM, [("white_matter", "operand_files")])])
+    workflow.connect([(split_tissue_classes, mult_EV1_WM, [("white_matter", "operand_files")])])
 
     workflow.connect([(inputnode, mult_EV2_WM, [("L2", "in_file")])])
-    workflow.connect(
-        [(split_tissue_classes, mult_EV2_WM, [("white_matter", "operand_files")])])
+    workflow.connect([(split_tissue_classes, mult_EV2_WM, [("white_matter", "operand_files")])])
 
     workflow.connect([(inputnode, mult_EV3_WM, [("L3", "in_file")])])
-    workflow.connect(
-        [(split_tissue_classes, mult_EV3_WM, [("white_matter", "operand_files")])])
+    workflow.connect([(split_tissue_classes, mult_EV3_WM, [("white_matter", "operand_files")])])
 
     workflow.connect([(mult_EV1_GM, multiply_GM, [("out_file", "in_file")])])
     workflow.connect([(mult_EV2_GM, GM_EV_merge, [("out_file", "in1")])])
@@ -119,7 +193,7 @@ def create_get_scale_factor_workflow(name):
     return workflow
 
 
-def include_gmsh_tensor_elements(mesh_file, tensor_file, mask_file, mask_threshold=0.3):
+def include_gmsh_tensor_elements(mesh_file, tensor_file, mask_file, mask_threshold=0.5, lower_triangular=True):
     import numpy as np
     import nibabel as nb
     from nipype.utils.filemanip import split_filename
@@ -129,9 +203,16 @@ def include_gmsh_tensor_elements(mesh_file, tensor_file, mask_file, mask_thresho
     import shutil
     iflogger = logging.getLogger('interface')
 
-    # Load 4D (6 volume: xx, xy, xz, yy, yz, zz) conductivity tensor image
+    # Load 4D (6 volume upper or lower triangular) conductivity tensor image
     tensor_image = nb.load(tensor_file)
     tensor_data = np.flipud(tensor_image.get_data())
+
+    # Correct the tensors after flipping in the X direction
+    tensor_data[:,:,:,1]*=-1
+    if lower_triangular:
+        tensor_data[:,:,:,3]*=-1
+    else:
+        tensor_data[:,:,:,2]*=-1
     
     # Load mask (usually fractional anisotropy) image
     mask_image = nb.load(mask_file)
@@ -180,25 +261,80 @@ def include_gmsh_tensor_elements(mesh_file, tensor_file, mask_file, mask_thresho
     #ipdb.set_trace()
     nonzero = 0
     elem_list = []
-    for idx, poly in enumerate(mesh_data):
-        i = np.round((poly['centroid'][0]+halfx)/vx).astype(int)
-        j = np.round((poly['centroid'][1]+halfy)/vy).astype(int)
-        k = np.round((poly['centroid'][2]+halfz)/vz).astype(int)
-        poly["tensor_triform"] = tensor_data[i,j,k]
-        if not (all(poly["tensor_triform"] == 0) and mask_data[i,j,k] >= mask_threshold):
-            elementdata_str = ('%d %e %e %e %e %e %e %e %e %e\n' % (poly["element_id"], 
-                poly["tensor_triform"][0], poly["tensor_triform"][1], poly["tensor_triform"][2],
-                poly["tensor_triform"][1], poly["tensor_triform"][3], poly["tensor_triform"][4],
-                poly["tensor_triform"][3], poly["tensor_triform"][4], poly["tensor_triform"][5]))
-            elem_list.append(elementdata_str)
-            nonzero += 1
-        iflogger.info("%3.3f%%" % (float(idx)/num_polygons*100.0))
+
+    if lower_triangular:
+        for idx, poly in enumerate(mesh_data):
+            i = np.round((poly['centroid'][0]+halfx)/vx).astype(int)
+            j = np.round((poly['centroid'][1]+halfy)/vy).astype(int)
+            k = np.round((poly['centroid'][2]+halfz)/vz).astype(int)
+            T = tensor_data[i,j,k]
+            if not (all(T == 0) and mask_data[i,j,k] >= mask_threshold):
+                elementdata_str = ('%d %e %e %e %e %e %e %e %e %e\n' % (poly["element_id"], 
+                    T[0], T[1], T[3],
+                    T[1], T[2], T[4],
+                    T[3], T[4], T[5]))
+                elem_list.append(elementdata_str)
+                nonzero += 1
+            #iflogger.info("%3.3f%%" % (float(idx)/num_polygons*100.0))
+    else:
+        for idx, poly in enumerate(mesh_data):
+            i = np.round((poly['centroid'][0]+halfx)/vx).astype(int)
+            j = np.round((poly['centroid'][1]+halfy)/vy).astype(int)
+            k = np.round((poly['centroid'][2]+halfz)/vz).astype(int)
+            T = tensor_data[i,j,k]
+            if not (all(T == 0) and mask_data[i,j,k] >= mask_threshold):
+                elementdata_str = ('%d %e %e %e %e %e %e %e %e %e\n' % (poly["element_id"], 
+                    T[0], T[1], T[2],
+                    T[1], T[3], T[4],
+                    T[2], T[4], T[5]))
+                elem_list.append(elementdata_str)
+                nonzero += 1
+            #iflogger.info("%3.3f%%" % (float(idx)/num_polygons*100.0))
+
 
     f.write('%d\n' % nonzero) #Num nonzero field components
     for elementdata_str in elem_list:
         f.write(elementdata_str)
 
     f.write('$EndElementData\n')
+
+    f.write('$ElementData\n')
+    str_tag = '"FA"'
+    timestep = 0.0002
+
+    f.write('1\n') #Num String tags
+    f.write(str_tag + '\n')
+    f.write('1\n') #Num Real tags
+    f.write('%f\n' % timestep)
+
+    #Three integer tags: timestep, num field components, num elements
+    f.write('3\n') #Three int tags
+    f.write('1\n') #Time step index
+    f.write('1\n') #Num field components
+
+    # Get the centroid of all white matter elements
+    # Find out which voxel they lie inside
+    iflogger.info("Writing FA for each element")
+    #ipdb.set_trace()
+    nonzero = 0
+    elem_list = []
+    for idx, poly in enumerate(mesh_data):
+        i = np.round((poly['centroid'][0]+halfx)/vx).astype(int)
+        j = np.round((poly['centroid'][1]+halfy)/vy).astype(int)
+        k = np.round((poly['centroid'][2]+halfz)/vz).astype(int)
+        if mask_data[i,j,k] > 0:
+            elementdata_str = ('%d %e\n' % (poly["element_id"], 
+                mask_data[i,j,k]))
+            elem_list.append(elementdata_str)
+            nonzero += 1
+        #iflogger.info("%3.3f%%" % (float(idx)/num_polygons*100.0))
+
+    f.write('%d\n' % nonzero) #Num nonzero field components
+    for elementdata_str in elem_list:
+        f.write(elementdata_str)
+
+    f.write('$EndElementData\n')
+
     f.close()
 
     iflogger.info("Finished writing to %s" % out_file)
@@ -207,10 +343,12 @@ def include_gmsh_tensor_elements(mesh_file, tensor_file, mask_file, mask_thresho
 
 def create_conductivity_tensor_mesh_workflow(name="add_conductivity"):
     inputnode = pe.Node(interface=util.IdentityInterface(
-        fields=["dwi", "bvecs", "bvals", "struct", "mesh_file"]), name="inputnode")
+        fields=["dwi", "bvecs", "bvals", "struct", "t1_fsl_space", "mesh_file"]), name="inputnode")
     outputnode = pe.Node(
-        interface=util.IdentityInterface(fields=["mesh_file"]), name="outputnode")
+        interface=util.IdentityInterface(fields=["mesh_file", "diff_V1", "cond_V1", "mean_conductivity"]), name="outputnode")
 
+    conform_T1 = pe.Node(interface=fs.MRIConvert(), name='conform_T1')
+    conform_T1.inputs.conform = True
     bet_T1 = pe.Node(interface=fsl.BET(), name='bet_T1')
 
     bet_b0 = pe.Node(interface=fsl.BET(), name='bet_b0')
@@ -222,32 +360,39 @@ def create_conductivity_tensor_mesh_workflow(name="add_conductivity"):
 
     affine_register = pe.Node(interface=fsl.FLIRT(), name='affine_register')
     affine_register.inputs.cost = ('normmi')
-    affine_register.inputs.dof = 6
-
-    nonlinear_warp = pe.Node(interface=fsl.FNIRT(), name='nonlinear_warp')
-    #nonlinear_warp.inputs.field_file = True
-    nonlinear_warp.inputs.fieldcoeff_file = "FA_T1_warp.nii"
 
     register_tensor = pe.Node(interface=fsl.VecReg(), name='register_tensor')
 
     decompose_tensor = pe.Node(
         interface=fsl.DecomposeTensor(), name='decompose_tensor')
+    decompose_conductivity = decompose_tensor.clone("decompose_conductivity")
+    decompose_conductivity.inputs.base_name = "cond"
+    decompose_diff_tensor_fslspace = decompose_tensor.clone("decompose_diff_tensor_fslspace")
+    decompose_diff_tensor_fslspace.inputs.base_name = "tensor_reg"
 
     fast_segment = pe.Node(interface=fsl.FAST(), name='fast_segment')
     fast_segment.inputs.segments = True
 
     conductivity_mapping = pe.Node(
         interface=dipy.EstimateConductivity(), name='conductivity_mapping')
+    conductivity_mapping.inputs.lower_triangular_input = False
+    conductivity_mapping.inputs.lower_triangular_output = False
+
+    concat_affine_xform = pe.Node(interface=fsl.ConvertXFM(), name='concat_affine_xform')
+    concat_affine_xform.inputs.in_file2 = op.join(os.environ["FWD_DIR"],"etc/fs2fsl_conform.mat")
+    concat_affine_xform.inputs.concat_xfm = True
+
+    diff_tensor_to_fsl_space = pe.Node(interface=fsl.VecReg(), name='diff_tensor_to_fsl_space')
 
     add_tensors_to_mesh_interface = util.Function(
-        input_names=["mesh_file", "tensor_file", "mask_file", "mask_threshold"],
+        input_names=["mesh_file", "tensor_file", "mask_file", "mask_threshold", "lower_triangular"],
         output_names=["out_file"],
         function=include_gmsh_tensor_elements)
     add_conductivity_tensor_to_mesh = pe.Node(
         interface=add_tensors_to_mesh_interface, name='add_conductivity_tensor_to_mesh')
 
-    erode_FA_map = pe.Node(interface=fsl.BET(), name="erode_FA_map")
-    erode_FA_map.inputs.mask = True
+    add_conductivity_tensor_to_mesh.inputs.lower_triangular = False
+    add_conductivity_tensor_to_mesh.inputs.mask_threshold = 0.1
 
     """
     Define the Workflow
@@ -266,22 +411,16 @@ def create_conductivity_tensor_mesh_workflow(name="add_conductivity"):
     workflow.connect([(inputnode, bet_b0, [('dwi', 'in_file')])])
     workflow.connect([(bet_b0, dtifit, [('mask_file', 'mask')])])
 
-    workflow.connect([(inputnode, bet_T1, [('struct', 'in_file')])])
+    workflow.connect([(inputnode, conform_T1, [('struct', 'in_file')])])
+    workflow.connect([(conform_T1, bet_T1, [('out_file', 'in_file')])])
     workflow.connect([(bet_T1, affine_register, [('out_file', 'reference')])])
-
     workflow.connect([(dtifit, affine_register, [('FA', 'in_file')])])
-    workflow.connect(
-        [(affine_register, nonlinear_warp, [('out_file', 'in_file')])])
-    workflow.connect([(bet_T1, nonlinear_warp, [('out_file', 'ref_file')])])
-
-    workflow.connect([(dtifit, register_tensor, [('tensor', 'in_file')])])
+    workflow.connect([(dtifit, register_tensor, [('tensor', 'in_file')])])    
     workflow.connect([(bet_T1, register_tensor, [('out_file', 'ref_vol')])])
-    workflow.connect(
-        [(affine_register, nonlinear_warp, [('out_matrix_file', 'affine_file')])])
-    workflow.connect(
-        [(nonlinear_warp, register_tensor, [('fieldcoeff_file', 'warp_field')])])
-    workflow.connect(
-        [(register_tensor, decompose_tensor, [('out_file', 'in_file')])])
+    workflow.connect([(affine_register, concat_affine_xform, [('out_matrix_file', 'in_file')])])
+
+    workflow.connect([(affine_register, register_tensor, [('out_matrix_file', 'affine_mat')])])
+    workflow.connect([(register_tensor, decompose_tensor, [('out_file', 'in_file')])])
 
     workflow.connect([(bet_T1, fast_segment, [("out_file", "in_files")])])
 
@@ -296,17 +435,33 @@ def create_conductivity_tensor_mesh_workflow(name="add_conductivity"):
     workflow.connect([(scale_factor_workflow, conductivity_mapping,
                        [("calc_scale_factor.scale_factor", "eigenvalue_scaling_factor")])])
 
-    workflow.connect([(register_tensor, conductivity_mapping,
-                       [("out_file", "in_file")])])
+    workflow.connect([(dtifit, diff_tensor_to_fsl_space,
+                       [("tensor", "in_file")])])
+    workflow.connect([(concat_affine_xform, diff_tensor_to_fsl_space,
+                       [("out_file", "affine_mat")])])
+    workflow.connect(
+        [(inputnode, diff_tensor_to_fsl_space, [("t1_fsl_space", "ref_vol")])])
 
+    workflow.connect(
+        [(decompose_diff_tensor_fslspace, add_conductivity_tensor_to_mesh, [("FA", "mask_file")])])
+
+    workflow.connect(
+        [(inputnode, add_conductivity_tensor_to_mesh, [("mesh_file", "mesh_file")])])
+    workflow.connect(
+        [(add_conductivity_tensor_to_mesh, outputnode, [("out_file", "mesh_file")])])
+    
+    workflow.connect(
+        [(diff_tensor_to_fsl_space, decompose_diff_tensor_fslspace, [("out_file", "in_file")])])
+    workflow.connect([(diff_tensor_to_fsl_space, conductivity_mapping,
+                       [("out_file", "in_file")])])
+    workflow.connect(
+        [(conductivity_mapping, decompose_conductivity, [("out_file", "in_file")])])
     workflow.connect(
         [(conductivity_mapping, add_conductivity_tensor_to_mesh, [("out_file", "tensor_file")])])
     workflow.connect(
-        [(nonlinear_warp, add_conductivity_tensor_to_mesh, [("warped_file", "mask_file")])])
+        [(decompose_diff_tensor_fslspace, outputnode, [("V1", "diff_V1")])])
     workflow.connect(
-        [(inputnode, add_conductivity_tensor_to_mesh, [("mesh_file", "mesh_file")])])
-
-
+        [(decompose_conductivity, outputnode, [("V1", "cond_V1")])])
     workflow.connect(
-        [(add_conductivity_tensor_to_mesh, outputnode, [("out_file", "mesh_file")])])
+        [(decompose_conductivity, outputnode, [("MD", "mean_conductivity")])])
     return workflow

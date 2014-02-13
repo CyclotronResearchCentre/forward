@@ -253,3 +253,96 @@ def create_forward_model_workflow(name, conductivity_tensor_included=False):
     workflow.connect(
         [(create_leadfield, outputnode, [("leadfield_matrix_file", "leadfield")])])
     return workflow
+
+def compare_leadfields(leadfield1, leadfield2, mesh_file):
+    '''
+    Compares two leadfield matrices and outputs the difference as
+    scalars attached to a mesh file. The mesh file must have the 
+    same number of elements as the leadfield's second dimension
+
+    FEM reciprocity leadfield is M x N where M is the number of sensors
+    and N is the number of elements. Mesh file must have N elements.
+
+    e.g. isotropic white matter conductivity
+    vs. anisotropic conductivity from estimated diffusion tensors
+    '''
+    import os.path as op
+    import h5py
+    import numpy as np
+
+    print("Reading leadfield 1: %s" % leadfield1)
+    lf1_data_file = h5py.File(leadfield1, "r")
+    lf1_data = lf1_data_file.get(data_name)
+    leadfield_matrix1 = lf1_data.value
+
+    print("Reading leadfield 2: %s" % leadfield2)
+    lf2_data_file = h5py.File(leadfield2, "r")
+    lf2_data = lf2_data_file.get(data_name)
+    leadfield_matrix2 = lf2_data.value
+    
+    from sklearn.metrics import mean_squared_error
+    from math import sqrt
+    rms = sqrt(mean_squared_error(leadfield_matrix2, leadfield_matrix1))
+
+    print("Saved leadfield matrix as %s" % out_filename)
+
+    from forward.mesh import read_mesh
+
+    # Define various constants
+    # Electric field elements are only saved in the gray matter
+    elements_to_consider = [1002]
+    mesh_data = read_mesh(mesh_file, elements_to_consider)
+
+    # Create the output mesh file
+    path, name, ext = split_filename(mesh_file)
+    rms_mesh_file = op.abspath(name + "_rmse.msh")
+
+    iflogger.info('Copying current mesh file to %s' % rms_mesh_file)
+    shutil.copyfile(mesh_file, rms_mesh_file)
+
+    f = open(rms_mesh_file,'a') #Append to the end of the file
+    iflogger.info('Appending root mean squared error scalars to %s' % rms_mesh_file)
+
+    # Write the tag information to the file:
+    num_polygons = len(mesh_data)
+    f.write('$ElementData\n')
+    str_tag = '"Root Mean Squared Error %s %s"' % (leadfield1, leadfield2)
+    timestep = 0.0001
+
+    f.write('1\n') #Num String tags
+    f.write(str_tag + '\n')
+    f.write('1\n') #Num Real tags
+    f.write('%f\n' % timestep)
+
+    #Three integer tags: timestep, num field components, num elements
+    f.write('3\n') #Three int tags
+    f.write('0\n') #Time step index
+    f.write('1\n') #Num field components
+
+    nonzero = 0
+    elem_list = []
+    for idx, poly in enumerate(mesh_data):
+        if not (all(poly["tensor_triform"] == 0) and mask_data[i,j,k] >= mask_threshold):
+            elementdata_str = ('%d %e %e %e %e %e %e %e %e %e\n' % (poly["element_id"], 
+                poly["tensor_triform"][0], poly["tensor_triform"][1], poly["tensor_triform"][2],
+                poly["tensor_triform"][1], poly["tensor_triform"][3], poly["tensor_triform"][4],
+                poly["tensor_triform"][3], poly["tensor_triform"][4], poly["tensor_triform"][5]))
+            elem_list.append(elementdata_str)
+            nonzero += 1
+        iflogger.info("%3.3f%%" % (float(idx)/num_polygons*100.0))
+
+    f.write('%d\n' % nonzero) #Num nonzero field components
+    for elementdata_str in elem_list:
+        f.write(elementdata_str)
+
+    f.write('$EndElementData\n')
+    f.close()
+
+    iflogger.info("Finished writing to %s" % out_file)
+    ## Nifti from gmsh
+    # Create empty nifti volume (e.g. 256 conformed, 1mm isotropic)
+    # Find centroid of all elements
+    # Find voxels they lie in, assign e_field value appropriately
+    # (many volumes, almost 180 x1 y1 z1 x2 y2 z2)
+
+    return rms_mesh_file
