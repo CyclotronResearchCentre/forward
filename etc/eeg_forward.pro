@@ -177,14 +177,14 @@ PostOperation v_j_e UsingPost Electrostatics_PostProcessing {
   //Print [e, OnElementsOf Omega, Depth 0, Format Table, File "e_eeg_forward.txt" ];
 
   // Electric field is in volts per metre [V / M]
-  //Print [e_brain, OnElementsOf GrayMatter, Depth 0, Format Table, File "e_eeg_forward.txt" ];
+  Print [e_brain, OnElementsOf GrayMatter, Depth 0, Format Table, File "e_brain.txt" ];
   Print [e_brain, OnElementsOf GrayMatter, File "e_brain.pos" ];
 
   //Print [v, OnElementsOf Omega, Format SimpleTable, File "v_eeg_forward.txt" ];
 
   // Sanity check for electrode potential
   // V is in Volts [V]
-  //Print [v_elec, OnElementsOf Electrodes, Format Table, File "v_electrodes.txt" ];
+  Print [v_elec, OnElementsOf Electrodes, Format Table, File "v_elec.txt" ];
 
   // Sanity check for electrode potential
   //Print [v_elec, OnElementsOf Electrodes, Depth 0, Format SimpleTable, File "v_electrodes_d0.txt" ];
