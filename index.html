@@ -36,14 +36,23 @@
 
 <p>This project aims to simplify the preparation of accurate electromagnetic head models for EEG forward modeling.</p>
 
-<p>It builds off of the seminal <a href="http://simnibs.org/">SimNIBS</a> tool the field modelling of transcranial magnetic stimulation (TMS) and transcranial direct current stimulation. Human skin, skull, cerebrospinal fluid, and brain meshing pipelines have been rewritten with Nipype to ease access parallel processing and to allow users to start/stop the workflows. Conductivity tensor mapping from diffusion-weighted imaging is also included.</p>
+<p>It builds off of the seminal <a href="http://simnibs.org/">SimNIBS</a> tool for electromagnetic field modelling of transcranial magnetic stimulation (TMS) and transcranial direct current stimulation. Human skin, skull, cerebrospinal fluid, and brain meshing pipelines have been rewritten with Nipype to ease access parallel processing and to allow users to start/stop the workflows. Conductivity tensor mapping from diffusion-weighted imaging is also included.</p>
 
 <p>At present these pipelines depend on interfaces for <a href="http://geuz.org/gmsh/">Gmsh</a> and <a href="https://code.google.com/p/meshfix/">Meshfix</a> that can only be found in the enh/conductivity branch of my fork of <a href="https://github.com/swederik/nipype">Nipype</a>. </p>
 
 <h1><a name="screenshots" class="anchor" href="#screenshots"><span class="octicon octicon-link"></span></a>Screenshots</h1>
 
+<p><strong>Spherical tests vs. Analytical solution and OpenMEEG</strong></p>
+<img src="images/screenshots/WholeSphereAll4Views.png" width=100% alt="Sphere mesh" class="inline"/>
+
+<p><strong>Example voltage sink at one electrode</strong></p>
+<img src="images/screenshots/sink.png" width=100% alt="Voltage sink" class="inline"/>
+
+<p><strong>Accuracy comparable with OpenMEEG</strong></p>
+<img src="images/screenshots/RDM_MAGs.png" width=100% alt="RDM and MAG" class="inline"/>
+
 <p><strong>Whole head surface meshes</strong></p>
-<img src="images/screenshots/brain.png" width=100% alt="Whole head surface meshes" class="inline"/>
+<img src="images/screenshots/HeadMeshes.png" width=100% alt="Whole head surface meshes" class="inline"/>
 
 <p><strong>White matter conductivity mapping</strong></p>
 <img src="images/screenshots/white.png" width=100% alt="White matter conductivity mapping" class="inline"/>
