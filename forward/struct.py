@@ -113,6 +113,7 @@ def create_iterative_cleanup_wf(name):
     clean1.inputs.quiet_mode = True
     clean1.inputs.epsilon_angle = 2
     clean1.inputs.uniform_remeshing_steps = 1
+    clean1.inputs.out_filename = name
 
     clean2 = clean1.clone("clean2")
     clean3 = clean1.clone("clean3")

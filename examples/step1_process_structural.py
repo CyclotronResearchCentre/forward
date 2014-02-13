@@ -1,4 +1,3 @@
-import os
 import os.path as op
 import nipype.interfaces.io as nio           # Data i/o
 import nipype.interfaces.utility as util     # utility
