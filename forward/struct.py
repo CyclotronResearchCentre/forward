@@ -117,6 +117,8 @@ def create_iterative_cleanup_wf(name):
     clean2 = clean1.clone("clean2")
     clean3 = clean1.clone("clean3")
     clean4 = clean2.clone("clean4")
+    clean1.inputs.out_filename = name
+    clean4.inputs.out_filename = name
 
     clean_wf = pe.Workflow(name=name + '_clean_wf')
     clean_wf.connect([(inputnode, clean1, [('in_file', 'in_file1')])])
