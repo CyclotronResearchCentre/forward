@@ -57,6 +57,7 @@ Function {
     sigma[Scalp]=0.33;
     sigma[Sink]=0.33;
     sigma[Source]=0.33;
+    DefineConstant[ Length = 1. ] ;
 }
 
 
