@@ -31,11 +31,11 @@ Group {
   CSF_Ventricles = Region[1003];
   Skull = Region[1004];
   Scalp = Region[1005];
-  Anode = Region[5008];
-  Cathode = Region[5011];
+  Sink = Region[5008];
+  Source = Region[5011];
 
   Omega = Region[{WhiteMatter_Cerebellum, GrayMatter, CSF_Ventricles, Skull, Scalp}];
-  Electrodes = Region[{Anode, Cathode}];
+  Electrodes = Region[{Sink, Source}];
 }
 
 // Define the conductivities
@@ -55,19 +55,34 @@ Function {
     sigma[CSF_Ventricles] = 1.79;
     sigma[Skull]=0.0042;
     sigma[Scalp]=0.33;
-    sigma[Anode]=0.33;
-    sigma[Cathode]=0.33;
+    sigma[Sink]=0.33;
+    sigma[Source]=0.33;
 }
 
 
-Constraint {{
-  Name ElectricScalarPotential;
-  Type Assign;
-  Case {
-    {Region Region[{Anode}]; Value  1.;}
-    {Region Region[{Cathode}]; Value -1.;}
+/* --------------------------------------------------------------------------*/
+Constraint {
+
+  { Name ElectricScalarPotential ;
+    Case { /* A reference must be given for the scalar potential */
+      {
+        Region Sink ; Value 0. ;
+      }
+    }
   }
-}}
+
+  /* ... or the current is fixed. Uncomment one of these two... */
+  { Name GlobalElectricCurrentSource ;
+    Case {
+      { Region Source ; Value 1. ; }
+    }
+  }
+  { Name GlobalElectricCurrentSink ;
+    Case {
+      { Region Sink ; Value -1. ; }
+    }
+  }
+}
 
 
 
@@ -95,35 +110,115 @@ Integration {
 FunctionSpace {{
   Name Hgrad_vf_Ele;
   Type Form0;
-  BasisFunction {{
+
+  BasisFunction {
+    {
     Name sn;
     NameOfCoef vn;
     Function BF_Node;
     Support Region[{Omega}];
-    Entity NodesOf[All];
-  }}
-  Constraint {{
-    NameOfCoef vn;
-    EntityType NodesOf;
-    NameOfConstraint ElectricScalarPotential;
-  }}
+    Entity NodesOf[All, Not Electrodes];
+    }
+    //
+    {
+    Name sck ;
+    NameOfCoef vck_source ;
+    Function BF_GroupOfNodes ;
+    Support Region[{Omega}];
+    Entity GroupsOfNodesOf[ Source ];
+    }
+    //
+    {
+    Name sck ;
+    NameOfCoef vck_sink ;
+    Function BF_GroupOfNodes ;
+    Support Region[{Omega}];
+    Entity GroupsOfNodesOf[ Sink ];
+    }
+  }
+  GlobalQuantity {
+    {
+    Name V_source;
+    Type AliasOf;
+    NameOfCoef vck_source;
+    }
+    {
+    Name V_sink;
+    Type AliasOf;
+    NameOfCoef vck_sink;
+    }
+    {
+    Name I_source;
+    Type AssociatedWith;
+    NameOfCoef vck_source;
+    }
+    {
+    Name I_sink;
+    Type AssociatedWith;
+    NameOfCoef vck_sink;
+    }
+
+  }
+    Constraint {
+      { NameOfCoef vn ;
+        EntityType NodesOf ; NameOfConstraint ElectricScalarPotential ; }
+      { NameOfCoef V_sink ;
+        EntityType GroupsOfNodesOf ; NameOfConstraint GlobalElectricPotential ; }
+      { NameOfCoef I_source ;
+        EntityType GroupsOfNodesOf ; NameOfConstraint GlobalElectricCurrentSource ; }
+      { NameOfCoef I_sink ;
+        EntityType GroupsOfNodesOf ; NameOfConstraint GlobalElectricCurrentSink ; }
+    }
+
 }}
 
 
 Formulation {{
   Name Electrostatics_Formulation;
   Type FemEquation;
-  Quantity {{
+  Quantity {
+    {
     Name v;
     Type Local;
     NameOfSpace Hgrad_vf_Ele;
-  }}
+    }
+    {
+    Name I_source;
+    Type Global;
+    NameOfSpace Hgrad_vf_Ele [I_source];
+    }
+    {
+    Name I_sink;
+    Type Global;
+    NameOfSpace Hgrad_vf_Ele [I_sink];
+    }
+    {
+    Name V_source;
+    Type Global;
+    NameOfSpace Hgrad_vf_Ele [V_source];
+    }
+    {
+    Name V_sink;
+    Type Global;
+    NameOfSpace Hgrad_vf_Ele [V_sink];
+    }
+  }
   Equation {
     Galerkin {
       [sigma[] * Dof{Grad v}, {Grad v}];
       In Omega;
       Jacobian Volume;
       Integration GradGrad;
+    }
+    GlobalTerm
+    {
+      [ Dof{I_source} / Length , {V_source} ];
+      In Source ;
+    }
+    GlobalTerm
+    {
+      [ Dof{I_sink} / Length , {V_sink} ];
+      In Sink ;
     }
   }
 }}
@@ -152,29 +247,35 @@ PostProcessing {{
   NameOfFormulation Electrostatics_Formulation;
   NameOfSystem Electrostatic_System;
   PostQuantity {
-    {Name v; Value {Term {[{v}]; In Omega; Jacobian Volume;}}}
-    {Name j; Value {Term {[sigma[] * (-{Grad v}) ]; In Omega; Jacobian Volume;}}}
-    {Name e; Value {Term {[-{Grad v}]; In Omega; Jacobian Volume;}}}
+    { Name v; Value {Term {[{v}]; In Omega; Jacobian Volume;}}}
+    { Name j; Value {Term {[sigma[] * (-{Grad v}) ]; In Omega; Jacobian Volume;}}}
+    { Name e; Value {Term {[-{Grad v}]; In Omega; Jacobian Volume;}}}
+
+    { Name V_source; Value { Term { [ {V_source} ]; In Source; Jacobian Volume;} } }
+    { Name I_source; Value { Term { [ {I_source} ]; In Source; Jacobian Volume;} } }
+    { Name R_source; Value { Term { [ -{V_source}/{I_source} ]; In Source; Jacobian Volume;} } }
+
+    { Name V_sink; Value { Term { [ {V_sink} ]; In Sink; Jacobian Volume;} } }
+    { Name I_sink; Value { Term { [ {I_sink} ]; In Sink; Jacobian Volume;} } }
+    { Name R_sink; Value { Term { [ -{V_sink}/{I_sink} ]; In Sink; Jacobian Volume;} } }
     // Sanity check for electrode potential
     {Name v_elec; Value {Term {[{v}]; In Electrodes; Jacobian Volume;}}}
-    {Name e_brain; Value {Term {[-{Grad v}]; In GrayMatter; Jacobian Volume;}}}
-  }
+    {Name e_brain; Value {Term {[-{Grad v}]; In GrayMatter; Jacobian Volume;}}}  }
 }}
 
 
 PostOperation v_j_e UsingPost Electrostatics_PostProcessing {
-  //Print [v, OnElementsOf Omega, File "v_eeg_forward.pos"];
-  Print [v_elec, OnElementsOf Electrodes, File "v_elec.pos"];
+  //Print [v, OnElementsOf Omega, File "v.pos"];
+  //Print [j, OnElementsOf Omega, File "j.pos"];
+  //Print [e, OnElementsOf Omega, File "e.pos"];
 
-  // Current density is in amperes per square metre [A / m^2]
-  //Print [j, OnElementsOf Omega, File "j_eeg_forward.pos"];
-  //Print [e, OnElementsOf Omega, File "e_eeg_forward.pos"];
+  //Print [V_source, OnElementsOf Source, File "V_source.pos"];
+  //Print [I_source, OnElementsOf Source, File "I_source.pos"];
+  //Print [R_source, OnElementsOf Source, File "R_source.pos"];
 
-  // Save the electric field elements in a text file
-  // This is done for the reciprocity calculations later
-  // Depth 0 gives returns values in the barycenter of each element
-  // Electric field is in volts per metre [V / M]
-  //Print [e, OnElementsOf Omega, Depth 0, Format Table, File "e_eeg_forward.txt" ];
+  //Print [V_sink, OnElementsOf Sink, File "V_sink.pos"];
+  //Print [I_sink, OnElementsOf Sink, File "I_sink.pos"];
+  //Print [R_sink, OnElementsOf Sink, File "R_sink.pos"];
 
   // Electric field is in volts per metre [V / M]
   Print [e_brain, OnElementsOf GrayMatter, Depth 0, Format Table, File "e_brain.txt" ];
@@ -185,9 +286,6 @@ PostOperation v_j_e UsingPost Electrostatics_PostProcessing {
   // Sanity check for electrode potential
   // V is in Volts [V]
   Print [v_elec, OnElementsOf Electrodes, Format Table, File "v_elec.txt" ];
-
-  // Sanity check for electrode potential
-  //Print [v_elec, OnElementsOf Electrodes, Depth 0, Format SimpleTable, File "v_electrodes_d0.txt" ];
-
+  Print [v_elec, OnElementsOf Electrodes, File "v_elec.pos"];
 }
 //End of File

@@ -31,15 +31,15 @@ Group {
   CSF_Ventricles = Region[1003];
   Skull = Region[1004];
   Scalp = Region[1005];
-  Sink = Region[5008];
-  Elec2 = Region[5001];
-  Source = Region[8000];
 
-  Omega = Region[{WhiteMatter_Cerebellum, GrayMatter, CSF_Ventricles, Skull, Scalp}];
+  // **This is replaced by dipole.py**
+  Sink = Region[5008];
+  Source = Region[8000];
   
-  // Find a way to specify Region[5000:5060]? with python?
   Electrodes = Region[{Sink, Source}];
   DipoleRegions = Region[{Sink, Source}];
+
+  Omega = Region[{Electrodes, WhiteMatter_Cerebellum, GrayMatter, CSF_Ventricles, Skull, Scalp}];
 }
 
 // Define the conductivities
@@ -59,7 +59,7 @@ Function {
     sigma[CSF_Ventricles] = 1.79;
     sigma[Skull]=0.0042;
     sigma[Scalp]=0.33;
-
+    sigma[Electrodes]=0.33;
     sigma[Sink]=0.33; // On scalp
     sigma[Source]=0.33; // In Gray Matter
     DefineConstant[ Length = 1. ] ;
@@ -125,7 +125,7 @@ FunctionSpace {{
     NameOfCoef vn;
     Function BF_Node;
     Support Region[{Omega}];
-    Entity NodesOf[All, Not Electrodes];
+    Entity NodesOf[All, Not DipoleRegions];
     }
     //
     {
@@ -170,8 +170,6 @@ FunctionSpace {{
     Constraint {
       { NameOfCoef vn ;
         EntityType NodesOf ; NameOfConstraint ElectricScalarPotential ; }
-      { NameOfCoef V_sink ;
-        EntityType GroupsOfNodesOf ; NameOfConstraint GlobalElectricPotential ; }
       { NameOfCoef I_source ;
         EntityType GroupsOfNodesOf ; NameOfConstraint GlobalElectricCurrentSource ; }
       { NameOfCoef I_sink ;
@@ -274,18 +272,19 @@ PostProcessing {{
 
 PostOperation v_j_e UsingPost Electrostatics_PostProcessing {
   Print [v, OnElementsOf Omega, File "v.pos"];
-  Print [j, OnElementsOf Omega, File "j.pos"];
-  Print [e, OnElementsOf Omega, File "e.pos"];
+  Print [v_elec, OnElementsOf Electrodes, File "v_elec.pos"];
+  //Print [j, OnElementsOf Omega, File "j.pos"];
+  //Print [e, OnElementsOf Omega, File "e.pos"];
 
-  Print [V_source, OnElementsOf Source, File "V_source.pos"];
-  Print [I_source, OnElementsOf Source, File "I_source.pos"];
-  Print [R_source, OnElementsOf Source, File "R_source.pos"];
+  //Print [V_source, OnElementsOf Source, File "V_source.pos"];
+  //Print [I_source, OnElementsOf Source, File "I_source.pos"];
+  //Print [R_source, OnElementsOf Source, File "R_source.pos"];
 
   Print [V_sink, OnElementsOf Sink, File "V_sink.pos"];
   Print [I_sink, OnElementsOf Sink, File "I_sink.pos"];
   Print [R_sink, OnElementsOf Sink, File "R_sink.pos"];
   
-  Print [v_elec, OnElementsOf Electrodes, Depth 0, Format SimpleTable, File "v_elec.txt"];
+  Print [v_elec, OnElementsOf Electrodes, Depth 0, Format Table, File "v_elec.txt"];
   Print [e_brain, OnElementsOf GrayMatter,  Depth 0, Format SimpleTable, File "e_brain.txt" ];
 }
 //End of File

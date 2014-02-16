@@ -31,7 +31,6 @@ Function {
 }
 
 /* --------------------------------------------------------------------------*/
-
 Constraint {
 
   { Name ElectricScalarPotential ;
@@ -39,14 +38,6 @@ Constraint {
       {
         Region Sink ; Value 0. ;
       }
-    }
-  }
-
-  /* Either the potential is fixed... */
-
-  { Name GlobalElectricPotential ;
-    Case {
-      //{ Region Elec1 ; Value 1.e-3 ; }
     }
   }
 
@@ -61,8 +52,6 @@ Constraint {
       { Region Sink ; Value -1. ; }
     }
   }
-
-
 }
 
 Jacobian {
