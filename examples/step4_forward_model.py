@@ -53,7 +53,7 @@ datasource.inputs.sort_filelist = True
 datasource.inputs.template = "%s"
 datasource.inputs.base_directory = data_path
 datasource.inputs.field_template = dict(
-    mesh_file='../%s*.msh', electrode_name_file='%s/ElectrodeNames.txt')
+    mesh_file='../%s_gmsh_cond_elec.msh', electrode_name_file='%s/ElectrodeNames.txt')
 datasource.inputs.template_args = info
 
 fwd = create_forward_model_workflow("forward", conductivity_tensor_included)
