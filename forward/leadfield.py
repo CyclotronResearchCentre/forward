@@ -15,7 +15,7 @@ def check_potential(table_files):
     import os.path as op
 
     '''
-    Assess sanity check data to make sure potential at source / sink electrodes
+    Sanity check data to make sure potential at source / sink electrodes
     are 1 and -1 Volts, respectively.
     '''
 
