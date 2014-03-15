@@ -1,8 +1,3 @@
-import numpy as np
-import os.path as op
-import subprocess
-from forward.mesh import get_num_nodes_elements
-import nipype.interfaces.io as nio           # Data i/o
 import nipype.interfaces.utility as util     # utility
 import nipype.pipeline.engine as pe          # pypeline engine
 from nipype.interfaces.gmsh import GetDP
@@ -270,6 +265,16 @@ def compare_leadfields(leadfield1, leadfield2, mesh_file):
     import os.path as op
     import h5py
     import numpy as np
+    import shutil
+    
+    from forward.mesh import read_mesh
+
+    from nipype.utils.filemanip import split_filename
+
+    from nipype import logging    
+    iflogger = logging.getLogger('interface')
+
+    data_name = "leadfield"
 
     print("Reading leadfield 1: %s" % leadfield1)
     lf1_data_file = h5py.File(leadfield1, "r")
@@ -280,18 +285,10 @@ def compare_leadfields(leadfield1, leadfield2, mesh_file):
     lf2_data_file = h5py.File(leadfield2, "r")
     lf2_data = lf2_data_file.get(data_name)
     leadfield_matrix2 = lf2_data.value
-    
-    from sklearn.metrics import mean_squared_error
-    from math import sqrt
-    rms = sqrt(mean_squared_error(leadfield_matrix2, leadfield_matrix1))
 
-    print("Saved leadfield matrix as %s" % out_filename)
-
-    from forward.mesh import read_mesh
-
-    # Define various constants
     # Electric field elements are only saved in the gray matter
-    elements_to_consider = [1002]
+    #elements_to_consider = [1001] #For Sphere
+    elements_to_consider = [1002] #For head models
     mesh_data = read_mesh(mesh_file, elements_to_consider)
 
     # Create the output mesh file
@@ -306,44 +303,133 @@ def compare_leadfields(leadfield1, leadfield2, mesh_file):
 
     # Write the tag information to the file:
     num_polygons = len(mesh_data)
-    f.write('$ElementData\n')
-    str_tag = '"Root Mean Squared Error %s %s"' % (leadfield1, leadfield2)
-    timestep = 0.0001
+    _, name1, _ = split_filename(leadfield1)
+    _, name2, _ = split_filename(leadfield2)
 
+    #For testing
+    #noise = np.random.normal(0,1,leadfield_matrix2.shape)
+    #leadfield_matrix2 = leadfield_matrix2 + noise
+
+    # Reshape the leadfields so they are M x 3 x N vectors (x, y, z direction of electric field)
+    leadfield_mesh1 = np.reshape(leadfield_matrix1, (leadfield_matrix1.shape[0]/3,3,leadfield_matrix1.shape[1]))
+    leadfield_mesh2 = np.reshape(leadfield_matrix2, (leadfield_matrix2.shape[0]/3,3,leadfield_matrix2.shape[1]))
+
+    #Check that the dimensions are appropriate
+    try:
+        assert(len(mesh_data) == leadfield_mesh1.shape[0] == leadfield_mesh2.shape[0])
+    except AssertionError:
+        iflogger.error("Lead fields could not be compared because the " \
+            "number of elements in the files do not match")
+        iflogger.error("Elements in %s: %d" % (mesh_file, len(mesh_data)))
+        iflogger.error("Elements in leadfield 1 %s: %d" % (leadfield1, leadfield_mesh1.shape[0]))
+        iflogger.error("Elements in leadfield 2 %s: %d" % (leadfield2, leadfield_mesh2.shape[0]))
+        raise Exception
+
+    # Get the mean squared difference between electric field vectors by sensor and element
+    diff = leadfield_mesh2 - leadfield_mesh1
+
+    # Gets the norm of the difference for X, Y, and Z directions
+    norm_x_diff = np.linalg.norm(diff[:,0,:],axis=1)
+    norm_y_diff = np.linalg.norm(diff[:,1,:],axis=1)
+    norm_z_diff = np.linalg.norm(diff[:,2,:],axis=1)
+
+    norm_lf1_x = np.linalg.norm(leadfield_mesh1[:,0,:], axis=1)
+    norm_lf1_y = np.linalg.norm(leadfield_mesh1[:,1,:], axis=1)
+    norm_lf1_z = np.linalg.norm(leadfield_mesh1[:,2,:], axis=1)
+
+    rmse_x = norm_x_diff / norm_lf1_x
+    rmse_y = norm_y_diff / norm_lf1_y
+    rmse_z = norm_z_diff / norm_lf1_z
+
+    rmse = (rmse_x + rmse_y + rmse_z) / 3.
+    assert(leadfield_mesh2.shape[0] == rmse.shape[0])
+
+    rmse_avg_list = []
+    rmse_x_list = []
+    rmse_y_list = []
+    rmse_z_list = []
+    for idx, poly in enumerate(mesh_data):
+        rmse_avg_str = ('%d %e \n' % (poly["element_id"], rmse[idx]))
+        rmse_avg_list.append(rmse_avg_str)
+        rmse_x_str = ('%d %e \n' % (poly["element_id"], rmse_x[idx]))
+        rmse_x_list.append(rmse_x_str)
+        rmse_y_str = ('%d %e \n' % (poly["element_id"], rmse_y[idx]))
+        rmse_y_list.append(rmse_y_str)
+        rmse_z_str  = ('%d %e \n' % (poly["element_id"], rmse_z[idx]))        
+        rmse_z_list.append(rmse_z_str)
+        iflogger.info("%3.3f%%" % (float(idx)/num_polygons*100.0))
+
+
+    # ----- Average RMSE ----- #
+    f.write('$ElementData\n')
+    str_tag = '"Average Root Mean Squared Error"'
+    timestep = 0.0001
     f.write('1\n') #Num String tags
     f.write(str_tag + '\n')
     f.write('1\n') #Num Real tags
     f.write('%f\n' % timestep)
-
     #Three integer tags: timestep, num field components, num elements
     f.write('3\n') #Three int tags
     f.write('0\n') #Time step index
     f.write('1\n') #Num field components
-
-    nonzero = 0
-    elem_list = []
-    for idx, poly in enumerate(mesh_data):
-        if not (all(poly["tensor_triform"] == 0) and mask_data[i,j,k] >= mask_threshold):
-            elementdata_str = ('%d %e %e %e %e %e %e %e %e %e\n' % (poly["element_id"], 
-                poly["tensor_triform"][0], poly["tensor_triform"][1], poly["tensor_triform"][2],
-                poly["tensor_triform"][1], poly["tensor_triform"][3], poly["tensor_triform"][4],
-                poly["tensor_triform"][3], poly["tensor_triform"][4], poly["tensor_triform"][5]))
-            elem_list.append(elementdata_str)
-            nonzero += 1
-        iflogger.info("%3.3f%%" % (float(idx)/num_polygons*100.0))
-
-    f.write('%d\n' % nonzero) #Num nonzero field components
-    for elementdata_str in elem_list:
+    f.write('%d\n' % len(mesh_data)) #Num nonzero field components
+    for elementdata_str in rmse_avg_list:
         f.write(elementdata_str)
-
     f.write('$EndElementData\n')
+
+
+    # ----- RMSE X ----- #
+    f.write('$ElementData\n')
+    str_tag = '"Root Mean Squared Error X-direction"'
+    timestep = 0.0002
+    f.write('1\n') #Num String tags
+    f.write(str_tag + '\n')
+    f.write('1\n') #Num Real tags
+    f.write('%f\n' % timestep)
+    #Three integer tags: timestep, num field components, num elements
+    f.write('3\n') #Three int tags
+    f.write('0\n') #Time step index
+    f.write('1\n') #Num field components
+    f.write('%d\n' % len(mesh_data)) #Num nonzero field components
+    for elementdata_str in rmse_x_list:
+        f.write(elementdata_str)
+    f.write('$EndElementData\n')
+
+    # ----- RMSE X ----- #
+    f.write('$ElementData\n')
+    str_tag = '"Root Mean Squared Error Y-direction"'
+    timestep = 0.0003
+    f.write('1\n') #Num String tags
+    f.write(str_tag + '\n')
+    f.write('1\n') #Num Real tags
+    f.write('%f\n' % timestep)
+    #Three integer tags: timestep, num field components, num elements
+    f.write('3\n') #Three int tags
+    f.write('0\n') #Time step index
+    f.write('1\n') #Num field components
+    f.write('%d\n' % len(mesh_data)) #Num nonzero field components
+    for elementdata_str in rmse_y_list:
+        f.write(elementdata_str)
+    f.write('$EndElementData\n')
+
+    # ----- RMSE X ----- #
+    f.write('$ElementData\n')
+    str_tag = '"Root Mean Squared Error Z-direction"'
+    timestep = 0.0004
+    f.write('1\n') #Num String tags
+    f.write(str_tag + '\n')
+    f.write('1\n') #Num Real tags
+    f.write('%f\n' % timestep)
+    #Three integer tags: timestep, num field components, num elements
+    f.write('3\n') #Three int tags
+    f.write('0\n') #Time step index
+    f.write('1\n') #Num field components
+    f.write('%d\n' % len(mesh_data)) #Num nonzero field components
+    for elementdata_str in rmse_z_list:
+        f.write(elementdata_str)
+    f.write('$EndElementData\n')
+
     f.close()
 
-    iflogger.info("Finished writing to %s" % out_file)
-    ## Nifti from gmsh
-    # Create empty nifti volume (e.g. 256 conformed, 1mm isotropic)
-    # Find centroid of all elements
-    # Find voxels they lie in, assign e_field value appropriately
-    # (many volumes, almost 180 x1 y1 z1 x2 y2 z2)
-
+    iflogger.info("Finished writing to %s" % rms_mesh_file)
     return rms_mesh_file

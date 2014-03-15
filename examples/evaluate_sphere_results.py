@@ -70,6 +70,7 @@ def get_rdm_and_mags(mesh_file, mesh_id, probe_dipole, radii=[85,88,92,100], con
 
     openmeeg_solution = op.join(out_directory, "four", "openmeeg.txt")
     lf_openmeeg = np.loadtxt(openmeeg_solution, delimiter=",")
+    
     try:
         lf_openmeeg = lf_openmeeg - lf_openmeeg[ground_idx]
         lf_openmeeg = np.delete(lf_openmeeg, (ground_idx), axis=0)
@@ -79,14 +80,6 @@ def get_rdm_and_mags(mesh_file, mesh_id, probe_dipole, radii=[85,88,92,100], con
     except IndexError:
         rdm_openmeeg = None
         mag_openmeeg = None
-
-    #norm_factor = np.max(lf_sphere,0)/np.max(lf_getdp,0)
-    #norm_factor = 7/50.
-    norm_factor = 0
-    #norm_factor = centroid
-    #lf_getdp = lf_getdp * norm_factor
-    #print("Scaling Factor:")
-    #print(norm_factor)
 
     rdms = np.empty((np.shape(lf_getdp)[1], 1))
     rows = np.shape(lf_getdp)[1]
@@ -103,11 +96,10 @@ def get_rdm_and_mags(mesh_file, mesh_id, probe_dipole, radii=[85,88,92,100], con
 
     print("RDMs %s" % str(rdms))
     print rdm_singlevalue
-    #print("Mean RDMs %s" % str(np.mean(rdms)))
     print("MAGs %s" % str(mags))
     print mag_singlevalue
     return (rdms, mags, rdm_singlevalue, mag_singlevalue, rdm_openmeeg,
-        mag_openmeeg, norm_factor, lf_getdp, lf_sphere)
+        mag_openmeeg, lf_getdp, lf_sphere)
 
 results = []
 radii=[85,88,92,100]
@@ -119,10 +111,8 @@ loop = True
 
 probe_dipole = np.array([[0, 0, 70]])
 (rdms, mags, rdm_sv, mag_sv,
-    rdm_OMEEG, mag_OMEEG, norm_factor, lf_getdp, lf_sphere) = get_rdm_and_mags(mesh_file, mesh_id, probe_dipole, radii, cond, n)
+    rdm_OMEEG, mag_OMEEG, lf_getdp, lf_sphere) = get_rdm_and_mags(mesh_file, mesh_id, probe_dipole, radii, cond, n)
 
-import ipdb
-#ipdb.set_trace()
 
 if loop:
     print("Looping through dipole positions:")
@@ -135,9 +125,8 @@ if loop:
     for idx in distances:
         print(idx)
         probe_dipole = np.array([[0, 0, idx]])
-        rdms, mags, rdm_sv, mag_sv, rdm_OMEEG, mag_OMEEG, norm_factor, lf_getdp, lf_sphere = get_rdm_and_mags(mesh_file, mesh_id, probe_dipole, radii, cond, n)
+        rdms, mags, rdm_sv, mag_sv, rdm_OMEEG, mag_OMEEG, lf_getdp, lf_sphere = get_rdm_and_mags(mesh_file, mesh_id, probe_dipole, radii, cond, n)
         results.append((idx, rdm_sv, mag_sv, rdm_OMEEG, mag_OMEEG))
-        norms.append(norm_factor)
 
     res = np.array(results)
     max_r = np.max(radii)

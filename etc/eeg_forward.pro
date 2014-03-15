@@ -163,8 +163,6 @@ FunctionSpace {{
     Constraint {
       { NameOfCoef vn ;
         EntityType NodesOf ; NameOfConstraint ElectricScalarPotential ; }
-      { NameOfCoef V_sink ;
-        EntityType GroupsOfNodesOf ; NameOfConstraint GlobalElectricPotential ; }
       { NameOfCoef I_source ;
         EntityType GroupsOfNodesOf ; NameOfConstraint GlobalElectricCurrentSource ; }
       { NameOfCoef I_sink ;

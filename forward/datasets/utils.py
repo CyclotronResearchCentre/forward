@@ -33,6 +33,12 @@ def _data_path(path=None, force_update=False, update_path=True,
         folder_name = "ForwardSample"
         folder_path = op.join(path, folder_name)
         rm_archive = False
+    elif name == 'leadfield':
+        archive_name = "LeadfieldSample.tar.gz"
+        url = "https://www.dropbox.com/s/3qic6ma3umzp2jg/" + archive_name + "?dl=1"
+        folder_name = "LeadfieldSample"
+        folder_path = op.join(path, folder_name)
+        rm_archive = False
     else:
         raise ValueError('Sorry, the dataset "%s" is not known.' % name)
 

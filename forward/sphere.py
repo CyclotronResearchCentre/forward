@@ -1,5 +1,4 @@
 import numpy as np
-import os
 import os.path as op
 import subprocess
 from forward.electrodes import rewrite_mesh_with_electrodes

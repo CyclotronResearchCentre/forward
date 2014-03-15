@@ -34,3 +34,24 @@ nosetests.xml
 .mr.developer.cfg
 .project
 .pydevproject
+
+# Forward-specific stuff
+*.pos
+*.geo
+*.msh
+*.pro
+*.pre
+*.res
+*.hdf5
+*.txt
+*.m
+*.mat
+*.npz
+*.bck
+examples/dipole*
+examples/diffusion*
+examples/structural*
+examples/forward*
+examples/dti*
+examples/cost*
+examples/ForwardSample*

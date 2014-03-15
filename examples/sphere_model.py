@@ -35,6 +35,7 @@ fwd.inputs.inputnode.conductivity_tensor_included = False
 fwd.inputs.write_problem_file.orig_pro_file = op.join(os.environ["FWD_DIR"], "etc/eeg_forward_sphere.pro")
 #fwd.inputs.run_forward_model.binary_output_files = False #for debugging
 fwd.inputs.run_forward_model.binary_output_files = True
+fwd.inputs.run_forward_model.out_pos_filenames = []
 
 datasink = pe.Node(interface=nio.DataSink(),
                    name="datasink")

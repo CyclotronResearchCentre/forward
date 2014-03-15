@@ -52,6 +52,7 @@ def read_mesh(mesh_filename, elements_to_consider):
     for idx, polygon in enumerate(polygons):
         poly_data = {}
         poly_data["element_id"] = int(polygon[0])
+        poly_data["phys_id"] = int(polygon[3])
         poly_data["number_of_points"] = get_num_nodes_from_elm_type(polygon[1])
         poly_data["node_ids"] = polygon[-poly_data["number_of_points"]:].astype(int)
         poly_data["node_locations"] = vertex_list[poly_data["node_ids"]-1][:,1:]

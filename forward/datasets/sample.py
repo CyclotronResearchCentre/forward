@@ -12,8 +12,8 @@
 from .utils import _data_path
 
 def data_path(path=None, force_update=False, update_path=True,
-              download=True, verbose=None):
+              name="example", download=True, verbose=None):
     return _data_path(path=path, force_update=force_update,
-                      update_path=update_path, name='example',
+                      update_path=update_path, name=name,
                       download=download,
                       verbose=verbose)

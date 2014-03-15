@@ -37,7 +37,7 @@ Group {
   Source = Region[8000];
   
   Electrodes = Region[{Sink, Source}];
-  DipoleRegions = Region[{Sink, Source}];
+  //DipoleRegions = Region[{Sink, Source}];
 
   Omega = Region[{Electrodes, WhiteMatter_Cerebellum, GrayMatter, CSF_Ventricles, Skull, Scalp}];
 }
@@ -60,7 +60,6 @@ Function {
     sigma[Skull]=0.0042;
     sigma[Scalp]=0.33;
     sigma[Electrodes]=0.33;
-    sigma[Sink]=0.33; // On scalp
     sigma[Source]=0.33; // In Gray Matter
     DefineConstant[ Length = 1. ] ;
 
@@ -72,26 +71,23 @@ Function {
 Constraint {
 
   { Name ElectricScalarPotential ;
-    Case { /* A reference must be given for the scalar potential */
+    Case { // A reference must be given for the scalar potential
       {
         Region Sink ; Value 0. ;
       }
     }
   }
 
-  /* ... or the current is fixed. Uncomment one of these two... */
   { Name GlobalElectricCurrentSource ;
     Case {
-      { Region Source ; Value 1. ; }
+      { Region Source ; Value -1. ; }
     }
   }
-  { Name GlobalElectricCurrentSink ;
+  /*{ Name GlobalElectricCurrentSink ;
     Case {
       { Region Sink ; Value -1. ; }
     }
-  }
-
-
+  }*/
 }
 
 Jacobian {
@@ -125,7 +121,7 @@ FunctionSpace {{
     NameOfCoef vn;
     Function BF_Node;
     Support Region[{Omega}];
-    Entity NodesOf[All, Not DipoleRegions];
+    Entity NodesOf[All, Not Source];
     }
     //
     {
@@ -136,13 +132,13 @@ FunctionSpace {{
     Entity GroupsOfNodesOf[ Source ];
     }
     //
-    {
+    /*{
     Name sck ;
     NameOfCoef vck_sink ;
     Function BF_GroupOfNodes ;
     Support Region[{Omega}];
     Entity GroupsOfNodesOf[ Sink ];
-    }
+    }*/
   }
   GlobalQuantity {
     {
@@ -150,30 +146,29 @@ FunctionSpace {{
     Type AliasOf;
     NameOfCoef vck_source;
     }
-    {
+    /*{
     Name V_sink;
     Type AliasOf;
     NameOfCoef vck_sink;
-    }
+    }*/
     {
     Name I_source;
     Type AssociatedWith;
     NameOfCoef vck_source;
     }
-    {
+    /*{
     Name I_sink;
     Type AssociatedWith;
     NameOfCoef vck_sink;
-    }
-
+    }*/
   }
     Constraint {
       { NameOfCoef vn ;
         EntityType NodesOf ; NameOfConstraint ElectricScalarPotential ; }
       { NameOfCoef I_source ;
         EntityType GroupsOfNodesOf ; NameOfConstraint GlobalElectricCurrentSource ; }
-      { NameOfCoef I_sink ;
-        EntityType GroupsOfNodesOf ; NameOfConstraint GlobalElectricCurrentSink ; }
+      /*{ NameOfCoef I_sink ;
+        EntityType GroupsOfNodesOf ; NameOfConstraint GlobalElectricCurrentSink ; }*/
     }
 
 }}
@@ -193,21 +188,21 @@ Formulation {{
     Type Global;
     NameOfSpace Hgrad_vf_Ele [I_source];
     }
-    {
+    /*{
     Name I_sink;
     Type Global;
     NameOfSpace Hgrad_vf_Ele [I_sink];
-    }
+    }*/
     {
     Name V_source;
     Type Global;
     NameOfSpace Hgrad_vf_Ele [V_source];
     }
-    {
+    /*{
     Name V_sink;
     Type Global;
     NameOfSpace Hgrad_vf_Ele [V_sink];
-    }
+    }*/
   }
   Equation {
     Galerkin {
@@ -221,11 +216,11 @@ Formulation {{
       [ Dof{I_source} / Length , {V_source} ];
       In Source ;
     }
-    GlobalTerm
+    /*GlobalTerm
     {
       [ Dof{I_sink} / Length , {V_sink} ];
       In Sink ;
-    }
+    }*/
   }
 }}
 
@@ -237,7 +232,7 @@ Resolution {{
     NameOfFormulation Electrostatics_Formulation;
   }}
   Operation {
-    SetGlobalSolverOptions["-ksp_type gmres -ksp_gmres_restart 1000 -ksp_rtol 1e-10"];
+    SetGlobalSolverOptions["-ksp_type gmres -ksp_gmres_restart 1000 -ksp_rtol 1e-5"];
     SetGlobalSolverOptions["-pc_type ilu -pc_factor_levels 2 "];
     Generate[Electrostatic_System];
     Solve[Electrostatic_System];
@@ -260,9 +255,10 @@ PostProcessing {{
     { Name I_source; Value { Term { [ {I_source} ]; In Source; Jacobian Volume;} } }
     { Name R_source; Value { Term { [ -{V_source}/{I_source} ]; In Source; Jacobian Volume;} } }
 
-    { Name V_sink; Value { Term { [ {V_sink} ]; In Sink; Jacobian Volume;} } }
+    /*{ Name V_sink; Value { Term { [ {V_sink} ]; In Sink; Jacobian Volume;} } }
     { Name I_sink; Value { Term { [ {I_sink} ]; In Sink; Jacobian Volume;} } }
     { Name R_sink; Value { Term { [ -{V_sink}/{I_sink} ]; In Sink; Jacobian Volume;} } }
+    */
     // Sanity check for electrode potential
     {Name v_elec; Value {Term {[{v}]; In Electrodes; Jacobian Volume;}}}
     {Name e_brain; Value {Term {[-{Grad v}]; In GrayMatter; Jacobian Volume;}}}
@@ -273,18 +269,19 @@ PostProcessing {{
 PostOperation v_j_e UsingPost Electrostatics_PostProcessing {
   Print [v, OnElementsOf Omega, File "v.pos"];
   Print [v_elec, OnElementsOf Electrodes, File "v_elec.pos"];
-  //Print [j, OnElementsOf Omega, File "j.pos"];
-  //Print [e, OnElementsOf Omega, File "e.pos"];
+  Print [j, OnElementsOf Omega, File "j.pos"];
+  Print [e, OnElementsOf Omega, File "e.pos"];
 
   //Print [V_source, OnElementsOf Source, File "V_source.pos"];
   //Print [I_source, OnElementsOf Source, File "I_source.pos"];
   //Print [R_source, OnElementsOf Source, File "R_source.pos"];
 
-  Print [V_sink, OnElementsOf Sink, File "V_sink.pos"];
-  Print [I_sink, OnElementsOf Sink, File "I_sink.pos"];
-  Print [R_sink, OnElementsOf Sink, File "R_sink.pos"];
+  //Print [V_sink, OnElementsOf Sink, File "V_sink.pos"];
+  //Print [I_sink, OnElementsOf Sink, File "I_sink.pos"];
+  //Print [R_sink, OnElementsOf Sink, File "R_sink.pos"];
   
   Print [v_elec, OnElementsOf Electrodes, Depth 0, Format Table, File "v_elec.txt"];
+  Print [v_elec, OnElementsOf Sink, Depth 0, Format Table, File "v_sink.txt"];
   Print [e_brain, OnElementsOf GrayMatter,  Depth 0, Format SimpleTable, File "e_brain.txt" ];
 }
 //End of File
