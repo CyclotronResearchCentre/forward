@@ -42,7 +42,7 @@ electrode_location_file = op.join(
 mesh_id = 1001
 
 
-def get_rdm_and_mags(mesh_file, mesh_id, probe_dipole, radii=[85,88,92,100], cond=[1, 1/20.0, 1/80.0, 1], n=42):
+def get_rdm_and_mags(mesh_file, mesh_id, probe_dipole, radii, cond, n=42):
     four = pe.Node(interface=FourShellAnalyticalModel(), name="four")
     name = str(probe_dipole[0]).replace(" ","")
     name = name.replace('[','')
@@ -104,7 +104,11 @@ def get_rdm_and_mags(mesh_file, mesh_id, probe_dipole, radii=[85,88,92,100], con
 results = []
 radii=[85,88,92,100]
 #radii = (np.array(radii)/2).tolist()
-cond=[1, 1/20.0, 1/80.0, 1]
+
+# Realistic conductivity values in S/m
+cond=[0.33, 1.79, 0.0042, 0.33]
+#cond=[1, 1/20, 1/80, 1]
+
 n=42
 #loop = False
 loop = True
@@ -131,28 +135,35 @@ if loop:
     res = np.array(results)
     max_r = np.max(radii)
 
+    np.save("SphereResults.npy", res)
     # Plot RDMs
-    plot(res[:,0], res[:,1], label="GetDP")
-    plot(res[:,0], res[:,3], label="OpenMEEG")
-    plt.xlabel('Dipole position (from 0 in Z dir, max radius = %f)' % max_r, fontsize=14)
+    plot(res[:,0], res[:,1], '.', label="GetDP")
+    plot(res[:,0], res[:,3], '+', label="OpenMEEG")
+    plt.xlabel('Dipole position (from 0 in Z dir, max radius = %3.0f)' % max_r, fontsize=14)
     plt.ylabel('Relative difference measure (RDM)', fontsize=14)
     for r in radii:
         plt.axvline(x=r,ymin=0,ymax=1,color="r")
     legend(bbox_to_anchor=(0., 1.02, 1., .102), loc=3,
             ncol=2, mode="expand", borderaxespad=0.)
     show()
+    plt.axis([0.0, 0.6, 0, 100])
+    ax = plt.gca()
+    ax.set_autoscale_on(False)
 
 
     # Plot MAGs
-    plot(res[:,0], res[:,2], label="GetDP")
-    plot(res[:,0], res[:,4], label="OpenMEEG")
-    plt.xlabel('Dipole position (from 0 in Z, max radius = %f)' % max_r, fontsize=14)
+    plot(res[:,0], res[:,2], '.', label="GetDP")
+    plot(res[:,0], res[:,4], '+', label="OpenMEEG")
+    plt.xlabel('Dipole position (from 0 in Z, max radius = %3.0f)' % max_r, fontsize=14)
     plt.ylabel('Magnification errors (MAG)', fontsize=14)
     for r in radii:
         plt.axvline(x=r,ymin=0,ymax=1,color="r")
     legend(bbox_to_anchor=(0., 1.02, 1., .102), loc=3,
             ncol=2, mode="expand", borderaxespad=0.)
     show()
+    plt.axis([0.0, 6, 0, 1])
+    ax = plt.gca()
+    ax.set_autoscale_on(False)
 
 def write_gmsh_pos_file(scalars, electrode_location_file, ground_idx, scalar_name="RDM"):
     out_file = scalar_name + ".pos"

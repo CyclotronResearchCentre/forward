@@ -20,13 +20,13 @@ Group {
 // 0.33 S/m for soft tissue/skin
 // (Baumann et al., 1997; Haueisen et al., 2002; Rullmann et al., 2009; Wolters, 2002).
 Function {
-    sigma[GrayMatter]=1;
-    sigma[CSF_Ventricles] = 0.05;
-    sigma[Skull]=0.0125;
-    sigma[Scalp]=1;
+    sigma[GrayMatter]=0.33;
+    sigma[CSF_Ventricles] = 1.79;
+    sigma[Skull]=0.0042;
+    sigma[Scalp]=0.33;
 
-    sigma[Sink]=1;
-    sigma[Source]=1;
+    sigma[Sink]=0.33;
+    sigma[Source]=0.33;
     DefineConstant[ Length = 1. ] ;
 }
 
