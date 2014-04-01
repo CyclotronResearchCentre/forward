@@ -210,7 +210,7 @@ def create_stl_fsmesh_floodfilled_wf(name):
     workflow.connect([(input_to_fsmesh, unityxform, [("mesh_file", "in_file")])])
     workflow.connect([(inputnode, unityxform, [("t1_fsl_space", "destination_volume")])])
     workflow.connect([(inputnode, unityxform, [("t1_fsl_space", "source_volume")])])
-    workflow.connect([(unityxform, floodfill, [("surface", "in_file")])])
+    workflow.connect([(unityxform, floodfill, [("out_file", "in_file")])])
     workflow.connect(
         [(floodfill, filled_to_fsl_space, [("out_file", "in_file")])])
     workflow.connect([(inputnode, filled_to_fsl_space, [("t1_fsl_space", "reference")])])
