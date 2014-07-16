@@ -27,16 +27,22 @@ def _data_path(path=None, force_update=False, update_path=True,
     if not isinstance(path, basestring):
         raise ValueError('path must be a string or None')
 
-    if name == 'example':
+    if name.lower() == 'example':
         archive_name = "ForwardSample.tar.gz"
         url = "https://www.dropbox.com/s/dr7qx6hbv7myxdc/" + archive_name + "?dl=1"
         folder_name = "ForwardSample"
         folder_path = op.join(path, folder_name)
         rm_archive = False
-    elif name == 'leadfield':
+    elif name.lower() == 'leadfield':
         archive_name = "LeadfieldSample.tar.gz"
         url = "https://www.dropbox.com/s/3qic6ma3umzp2jg/" + archive_name + "?dl=1"
         folder_name = "LeadfieldSample"
+        folder_path = op.join(path, folder_name)
+        rm_archive = False
+    elif name.lower() == 'simnibs':
+        archive_name = "simnibs_example.tar.gz"
+        url = "http://simnibs.org/_media/" + archive_name
+        folder_name = "simnibs_example"
         folder_path = op.join(path, folder_name)
         rm_archive = False
     else:

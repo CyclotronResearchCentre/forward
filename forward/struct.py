@@ -945,10 +945,14 @@ Cerebrospinal Fluid workflow
 '''
 
 
-def cerebrospinal_fluid_workflow(name):
+def cerebrospinal_fluid_workflow(name, include_t2fs=False):
+    inputfields = ["nu", "cerebellum_volume", "gray_matter_large", "t1_fsl_space", "Conform2MNI",
+                                                 "gray_matter_surface", "cerebellum_surface"]
+    if include_t2fs:
+        inputfields.append("t2fs_fsl_space")
+
     inputnode = pe.Node(
-        interface=util.IdentityInterface(fields=["nu", "cerebellum_volume", "gray_matter_large", "t1_fsl_space", "Conform2MNI",
-                                                 "gray_matter_surface", "cerebellum_surface"]), name="inputnode")
+        interface=util.IdentityInterface(fields=inputfields), name="inputnode")
     outputnode = pe.Node(
         interface=util.IdentityInterface(fields=["csf_surface", "csf_volume", "NU_bet_meshfile"]), name="outputnode")
 
@@ -963,9 +967,9 @@ def cerebrospinal_fluid_workflow(name):
 
     create_CSF_surface = pe.Node(
         interface=fsl.BETSurface(), name='create_CSF_surface')
-    create_CSF_surface.inputs.mask = True
-    create_CSF_surface.inputs.t1_only = True
+    create_CSF_surface.inputs.mask = True    
     create_CSF_surface.inputs.outline = True
+    create_CSF_surface.inputs.t1_only = not(include_t2fs)
 
     # create enlarged csf volume and add it to enlarged gm volume
     create_enlarged_brainmask_with_CB = pe.Node(
@@ -998,8 +1002,13 @@ def cerebrospinal_fluid_workflow(name):
     workflow.connect([(inputnode, nu_to_MNI, [("t1_fsl_space", "reference")])])
     workflow.connect(
             [(nu_to_MNI, get_initial_csf_surface, [("out_file", "in_file")])])
-    workflow.connect(
-        [(get_initial_csf_surface, create_CSF_surface, [("out_file", "t1_file")])])
+
+    workflow.connect([(inputnode, create_CSF_surface, [("t1_fsl_space", "t1_file")])])
+
+    if include_t2fs:
+        workflow.connect(
+            [(inputnode, create_CSF_surface, [("t2fs_fsl_space", "t2_file")])])
+
     workflow.connect(
         [(get_initial_csf_surface, create_CSF_surface, [("meshfile", "meshfile")])])
     workflow.connect(
@@ -1045,11 +1054,16 @@ Skull workflow
 '''
 
 
-def skull_workflow(name):
+def skull_workflow(name, include_t2=False):
+    inputfields = ["csf_volume", "csf_surface", "t1_fsl_space",
+                   "Conform2MNI", "NU_bet_meshfile"]
+
+    if include_t2:
+        inputfields.append("t2_fsl_space")
+
     inputnode = pe.Node(
-        interface=util.IdentityInterface(fields=["csf_volume", "csf_surface",
-                                                 "t1_fsl_space","Conform2MNI",
-                                                 "NU_bet_meshfile"]), name="inputnode")
+        interface=util.IdentityInterface(fields=inputfields), name="inputnode")
+
     outputnode = pe.Node(
         interface=util.IdentityInterface(fields=["skull_volume", "skull_surface"]), name="outputnode")
 
@@ -1057,7 +1071,7 @@ def skull_workflow(name):
         interface=fsl.BETSurface(), name='create_skullmask')
     create_skullmask.inputs.mask = True
     create_skullmask.inputs.outline = True
-    create_skullmask.inputs.t1_only = True
+    create_skullmask.inputs.t1_only = not(include_t2)
 
     # create enlarged csf volume and add it to enlarged gm volume
     create_enlarged_CSF = pe.Node(
@@ -1093,6 +1107,11 @@ def skull_workflow(name):
 
     workflow.connect(
         [(inputnode, create_skullmask, [("t1_fsl_space", "t1_file")])])
+
+    if include_t2:
+        workflow.connect(
+            [(inputnode, create_skullmask, [("t2_fsl_space", "t2_file")])])
+
     workflow.connect(
         [(inputnode, create_skullmask, [("NU_bet_meshfile", "meshfile")])])
 
@@ -1216,18 +1235,30 @@ End of Skin workflow
 Main structural preprocessing workflow
 '''
 
-def create_structural_mesh_workflow(name="structural_mesh"):
-    workflow = pe.Workflow(name=name)
+def create_structural_mesh_workflow(name="structural_mesh", include_t2=False, include_t2fs=False):
+    inputfields = ["subject_id", "subjects_dir"]
+    outputfields = ["volume_mesh", "surfaces", "volumes", "t1_fsl_space"]
+
+    if include_t2:
+        inputfields.append("t2_file")
+        outputfields.append("t2_file")
+        
+    if include_t2fs:
+        inputfields.append("t2fs_file")
+        outputfields.append("t2fs_file")
+
     inputnode = pe.Node(
-        interface=util.IdentityInterface(fields=["subject_id", "subjects_dir"]), name="inputnode")
+        interface=util.IdentityInterface(fields=inputfields), name="inputnode")
     outputnode = pe.Node(
-        interface=util.IdentityInterface(fields=["volume_mesh", "surfaces", "volumes", "t1_fsl_space"]), name="outputnode")
+        interface=util.IdentityInterface(fields=outputfields), name="outputnode")
+
+    workflow = pe.Workflow(name=name)
 
     brain_wf = brain_workflow("brain")
     ventricle_wf = ventricle_workflow("ventricle")
     cerebellum_wf = cerebellum_workflow("cerebellum")
-    cerebrospinal_fluid_wf = cerebrospinal_fluid_workflow("cerebrospinal_fluid")
-    skull_wf = skull_workflow("skull")
+    cerebrospinal_fluid_wf = cerebrospinal_fluid_workflow("cerebrospinal_fluid", include_t2fs)
+    skull_wf = skull_workflow("skull", include_t2fs)
     skin_wf = skin_workflow("skin")
 
     create_volume_mesh_script_interface = util.Function(input_names=["subject_id", "gm", "wm", "csf","skull", "skin", "cerebellum", "ventricles"],
@@ -1268,6 +1299,25 @@ def create_structural_mesh_workflow(name="structural_mesh"):
 
     workflow.connect(
         [(brain_wf, cerebrospinal_fluid_wf, [("outputnode.t1_fsl_space", "inputnode.t1_fsl_space")])])
+
+    if include_t2fs:
+        prep_t2fs = image_to_fsl_space("prep_t2fs")
+        workflow.connect(
+            [(inputnode, prep_t2, [("t2fs_file", "inputnode.in_file")])])
+        workflow.connect(
+            [(brain_wf, prep_t2, [("outputnode.t1_fsl_space", "inputnode.reference")])])
+        workflow.connect(
+            [(prep_t2, skull_wf, [("outputnode.out_file", "inputnode.t2fs_fsl_space")])])
+
+    if include_t2:
+        prep_t2 = image_to_fsl_space("prep_t2")
+        workflow.connect(
+            [(inputnode, prep_t2, [("t2_file", "inputnode.in_file")])])
+        workflow.connect(
+            [(brain_wf, prep_t2, [("outputnode.t1_fsl_space", "inputnode.reference")])])
+        workflow.connect(
+            [(prep_t2, cerebrospinal_fluid_wf, [("outputnode.out_file", "inputnode.t2_fsl_space")])])
+
     workflow.connect(
         [(brain_wf, cerebrospinal_fluid_wf, [("outputnode.nu", "inputnode.nu")])])
     workflow.connect(
