@@ -122,7 +122,7 @@ def add_sensors(electrode_location_file, mesh_file, radii):
     return op.abspath(out_file), elec_name_file, new_electrode_location_file
 
 
-def create_4_shell_model(electrode_location_file, radii=[85, 88, 92, 100], out_file='4shell.msh'):
+def create_4_shell_model(electrode_location_file=None, radii=[85, 88, 92, 100], out_file='4shell.msh'):
     from forward.sphere import (create_sphere, mesh_2D,
                                 merge_and_diff, add_sensors)
     assert(len(radii) == 4)
@@ -148,10 +148,13 @@ def create_4_shell_model(electrode_location_file, radii=[85, 88, 92, 100], out_f
         radii[3], 4, characteristic_length_skin, out_file="skin_sphere.geo")
     skin_msh = mesh_2D(skin)
 
-    mesh_file = merge_and_diff([brain_msh, csf_msh, skull_msh, skin_msh],
+    mesh_without_electrodes = merge_and_diff([brain_msh, csf_msh, skull_msh, skin_msh],
                                ids_outside_inward=[4, 3, 2, 1], out_file=out_file)
 
-    mesh_file, electrode_name_file, electrode_location_file = add_sensors(
-        electrode_location_file, mesh_file, radii)
-    return mesh_file, electrode_name_file, electrode_location_file
+    if electrode_location_file is not None:
+        mesh_file, electrode_name_file, electrode_location_file = add_sensors(
+            electrode_location_file, mesh_without_electrodes, radii)
+        return mesh_file, electrode_name_file, electrode_location_file, mesh_without_electrodes
+    else:
+        return mesh_without_electrodes
 

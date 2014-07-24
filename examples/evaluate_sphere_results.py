@@ -57,8 +57,11 @@ def get_rdm_and_mags(mesh_file, mesh_id, probe_dipole, radii, cond, n=42):
     four.inputs.shell_conductivity = cond
     four.inputs.icosahedron_sides = n
     four.inputs.fieldtrip_path = "/Developer/fieldtrip"
-    four.run()
+    
     analytical_solution = op.join(out_directory, "four", "analytical.txt")
+    if not op.exists(analytical_solution):
+        four.run()
+        
     # Re-reference to ground electrode
     lf_sphere = np.loadtxt(analytical_solution, delimiter=",")
     lf_sphere = lf_sphere - lf_sphere[ground_idx]
@@ -68,8 +71,28 @@ def get_rdm_and_mags(mesh_file, mesh_id, probe_dipole, radii, cond, n=42):
     mesh_data, closest_element_idx, centroid, closest_element_data, lf_idx = get_closest_element_to_point(mesh_file, mesh_id, probe_dipole)
     lf_getdp = np.transpose(leadfield_matrix[lf_idx * 3:lf_idx * 3 + 3])
 
+    rdms = np.empty((np.shape(lf_getdp)[1], 1))
+    rows = np.shape(lf_getdp)[1]
+    for idx in xrange(0, rows):
+        rdms[idx, :] = norm(lf_getdp[:, idx] / norm(lf_getdp[:, idx]) -
+                            lf_sphere[:, idx] / norm(lf_sphere[:, idx]))
+
+    mags = np.divide(np.sqrt(np.sum(lf_getdp ** 2, 0)),
+                     np.sqrt(np.sum(lf_sphere ** 2, 0)) )
+
+    lf_getdp = lf_getdp[:,2]
+    lf_sphere = lf_sphere[:,2]
+    rdm_singlevalue = norm( lf_getdp / norm(lf_getdp) - lf_sphere / norm(lf_sphere) )
+    mag_singlevalue = np.divide(norm(lf_getdp),norm(lf_sphere))
+
+    print("RDMs %s" % str(rdms))
+    print rdm_singlevalue
+    print("MAGs %s" % str(mags))
+    print mag_singlevalue
+
     openmeeg_solution = op.join(out_directory, "four", "openmeeg.txt")
     lf_openmeeg = np.loadtxt(openmeeg_solution, delimiter=",")
+    lf_openmeeg = lf_openmeeg[:,2]
     
     try:
         lf_openmeeg = lf_openmeeg - lf_openmeeg[ground_idx]
@@ -81,23 +104,6 @@ def get_rdm_and_mags(mesh_file, mesh_id, probe_dipole, radii, cond, n=42):
         rdm_openmeeg = None
         mag_openmeeg = None
 
-    rdms = np.empty((np.shape(lf_getdp)[1], 1))
-    rows = np.shape(lf_getdp)[1]
-    for idx in xrange(0, rows):
-        rdms[idx, :] = norm(lf_getdp[:, idx] / norm(lf_getdp[:, idx]) -
-                            lf_sphere[:, idx] / norm(lf_sphere[:, idx]))
-
-    rdm_singlevalue = norm( lf_getdp / norm(lf_getdp) - lf_sphere / norm(lf_sphere) )
-    
-
-    mags = np.divide(np.sqrt(np.sum(lf_getdp ** 2, 0)),
-                     np.sqrt(np.sum(lf_sphere ** 2, 0)) )
-    mag_singlevalue = np.divide(norm(lf_getdp),norm(lf_sphere))
-
-    print("RDMs %s" % str(rdms))
-    print rdm_singlevalue
-    print("MAGs %s" % str(mags))
-    print mag_singlevalue
     return (rdms, mags, rdm_singlevalue, mag_singlevalue, rdm_openmeeg,
         mag_openmeeg, lf_getdp, lf_sphere)
 
@@ -120,7 +126,8 @@ probe_dipole = np.array([[0, 0, 70]])
 
 if loop:
     print("Looping through dipole positions:")
-    distances = [10, 20, 40, 60, 70, 75, 80, 82, 84, 85]
+    #distances = [10, 20, 40, 60, 70, 75, 80, 82, 84, 85]
+    distances = range(0,83,1)
     #distances = (np.array(distances)/2).tolist()
 
     distances.reverse()

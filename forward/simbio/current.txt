@@ -1,0 +1,22 @@
+# 1 dipole(s)
+# Explanation with regard to the magnitude matrix:
+# Each column of the magnitude matrix below results in one forward simulated
+# sample. Each row corresponds to the respective dipole. If, like in this source file,
+# each column has only one nonzero 1 entry, then only the corresponding single dipole contributes
+# to the forward simulated field sample. Two nonzero 1 entries in a single column would result
+# in a field sample produced by the two corresponding simultaneously active dipoles etc..
+UnitPosition	mm
+UnitMoment	nAm
+UnitTime	ms
+NumberPositions=	1
+NumberTimeSteps=	1
+TimeSteps	0(1)1
+FirstTimeStep	0
+LastTimeStep	1
+PositionsFixed
+0.000000	0.000000	70.000000
+MomentsFixed
+0.000000	0.000000	1.000000
+Magnitudes
+1
+NoLabels

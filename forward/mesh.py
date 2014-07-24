@@ -2,12 +2,14 @@ import numpy as np
 import logging
 logger = logging.getLogger('electrode')
 
-def read_mesh(mesh_filename, elements_to_consider):
+def read_mesh(mesh_filename, elements_to_consider=None):
     from nipype import logging
     iflogger = logging.getLogger('interface')
 
     iflogger.info("Reading mesh file: %s" % mesh_filename)
     iflogger.info("Mesh ids to consider: %s" % elements_to_consider)
+
+    elem_ids_in_file = []
 
     mesh_file = open(mesh_filename, 'r')
     while True:
@@ -21,7 +23,7 @@ def read_mesh(mesh_filename, elements_to_consider):
             for i in xrange(0, number_of_nodes):
                 line = mesh_file.readline()
                 node_data = line.split()
-                vertex_list.append(node_data)
+                vertex_list.append(node_data[1:])
 
             vertex_list = np.array((vertex_list)).astype(float)
             iflogger.info("Done reading nodes")
@@ -38,7 +40,12 @@ def read_mesh(mesh_filename, elements_to_consider):
                 elem_data = line.split()
                 if isinstance(elements_to_consider, int):
                     elements_to_consider = [elements_to_consider]
-                if int(elem_data[3]) in elements_to_consider:
+
+                if elements_to_consider is None:
+                    polygons.append(np.array(elem_data))
+                    elem_ids_in_file.append(int(elem_data[3]))
+
+                elif int(elem_data[3]) in elements_to_consider:
                     polygons.append(np.array(elem_data))
 
             polygons = np.array((polygons))
@@ -48,20 +55,31 @@ def read_mesh(mesh_filename, elements_to_consider):
     # Loop through and assign points to each polygon, save as a dictionary
     mesh_data = []
     num_polygons = len(polygons)
-    iflogger.info("%d polygons found with mesh IDs: %s" % (num_polygons, elements_to_consider))
+    if elements_to_consider is None:
+        iflogger.info("%d polygons found with mesh IDs: %s" % (num_polygons, elem_ids_in_file))
+    else:
+        iflogger.info("%d polygons found with mesh IDs: %s" % (num_polygons, elements_to_consider))
+
+    elem = []
+    labels = []
     for idx, polygon in enumerate(polygons):
         poly_data = {}
         poly_data["element_id"] = int(polygon[0])
         poly_data["phys_id"] = int(polygon[3])
         poly_data["number_of_points"] = get_num_nodes_from_elm_type(polygon[1])
         poly_data["node_ids"] = polygon[-poly_data["number_of_points"]:].astype(int)
-        poly_data["node_locations"] = vertex_list[poly_data["node_ids"]-1][:,1:]
+        poly_data["node_locations"] = vertex_list[poly_data["node_ids"]-1][:,:]
         poly_data["centroid"] = np.mean(poly_data["node_locations"],0)
 
         mesh_data.append(poly_data)
+        elem.append(poly_data["node_ids"])
+        labels.append(poly_data["phys_id"])
+        #nodes             n. of nodes*3 field with the position of the nodes
+        #elements          n. of elements*8 field with the elements
+        #labels            n. of elements vector with the elements labels
         #iflogger.info("%3.3f%%" % (float(idx)/num_polygons*100.0))
 
-    return mesh_data
+    return mesh_data, vertex_list, elem, labels
 
 
 def get_num_nodes_from_elm_type(elm_type):
