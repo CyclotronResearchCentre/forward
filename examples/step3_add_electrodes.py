@@ -40,5 +40,12 @@ We use the element ID for the scalp volume in the Gmsh mesh
 '''
 mesh_id = 1005
 
+import time
+start = time.time()
+
 out_file = rewrite_mesh_with_electrodes(electrode_position_file, electrode_name_file,
     mesh_file, mesh_id)
+end = time.time()
+print(start)
+print(end)
+print(end-start)

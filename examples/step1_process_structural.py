@@ -47,5 +47,12 @@ struct_proc.connect([(infosource, datasink, [("subject_id", "subject_id")])])
 
 if __name__ == '__main__':
     struct_proc.write_graph()
-    struct_proc.run()
-    #struct_proc.run(plugin='MultiProc', plugin_args={'n_procs' : 4}, updatehash=False)
+    import time
+    start = time.time()
+    #struct_proc.run()
+    struct_proc.run(plugin='MultiProc', plugin_args={'n_procs' : 4}, updatehash=False)
+    end = time.time()
+    print(start)
+    print(end)
+    print(end-start)
+    #

@@ -45,6 +45,12 @@ def _data_path(path=None, force_update=False, update_path=True,
         folder_name = "simnibs_example"
         folder_path = op.join(path, folder_name)
         rm_archive = False
+    elif name.lower() == 'almi5':
+        archive_name = "almi5.tar.gz"
+        url = "https://www.dropbox.com/s/s5o9v5v23xizqqy/" + archive_name
+        folder_name = "almi5"
+        folder_path = op.join(path, folder_name)
+        rm_archive = False
     else:
         raise ValueError('Sorry, the dataset "%s" is not known.' % name)
 

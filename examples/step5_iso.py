@@ -25,7 +25,7 @@ ground_electrode = 'IZ'
 Define the mesh file to be used. This should be the volume mesh 
 output of the structural preprocessing workflow.
 '''
-conductivity_tensor_included = True
+conductivity_tensor_included = False
 
 '''
 Define the subjects
@@ -53,17 +53,17 @@ datasource.inputs.sort_filelist = True
 datasource.inputs.template = "%s"
 datasource.inputs.base_directory = data_path
 datasource.inputs.field_template = dict(
-    mesh_file='../%s_gmsh_cond_elec.msh', electrode_name_file='%s/ElectrodeNames.txt')
+    mesh_file='../%s_gmsh_cond_elec.msh', electrode_name_file='%s/ElectrodeNames.txt') #Still using cond on purpose! Other mesh has diff number of elements?
 datasource.inputs.template_args = info
 
-fwd = create_forward_model_workflow("forward", conductivity_tensor_included)
+fwd = create_forward_model_workflow("forward_iso", conductivity_tensor_included)
 fwd.inputs.inputnode.marker_list = markers
 fwd.inputs.inputnode.ground_electrode = ground_electrode
 fwd.inputs.inputnode.conductivity_tensor_included = conductivity_tensor_included
 
 datasink = pe.Node(interface=nio.DataSink(),
                    name="datasink")
-datasink.inputs.base_directory = op.abspath('forward_datasink')
+datasink.inputs.base_directory = op.abspath('forward_iso_datasink')
 datasink.inputs.container = 'subject'
 
 fwd_proc = pe.Workflow(name="fwd_proc")
@@ -79,12 +79,5 @@ fwd_proc.connect([(infosource, datasink, [("subject_id", "subject_id")])])
 
 if __name__ == '__main__':
     fwd_proc.write_graph(graph2use="exec")
-    import time
-    start = time.time()
-
-    fwd_proc.run(plugin='MultiProc', plugin_args={'n_procs' : 4})
-    end = time.time()
-    print(start)
-    print(end)
-    print(end-start)
-    #
+    fwd_proc.run()
+    #fwd_proc.run(plugin='MultiProc', plugin_args={'n_procs' : 2})

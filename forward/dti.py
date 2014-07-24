@@ -83,6 +83,12 @@ def split_tissue_classes_fn(in_files):
             white_matter = in_file
     return gray_matter, white_matter, csf
 
+def select_WM(tissue_class_files):
+    WM = None
+    for in_file in tissue_class_files:
+        if in_file.rfind("_seg_2") > 0:
+            WM = in_file
+    return WM
 
 def calc_scale_factor_fn(white_matter, gray_matter):
     import numpy as np
@@ -345,7 +351,7 @@ def create_conductivity_tensor_mesh_workflow(name="add_conductivity"):
     inputnode = pe.Node(interface=util.IdentityInterface(
         fields=["dwi", "bvecs", "bvals", "struct", "t1_fsl_space", "mesh_file"]), name="inputnode")
     outputnode = pe.Node(
-        interface=util.IdentityInterface(fields=["mesh_file", "diff_V1", "cond_V1", "mean_conductivity"]), name="outputnode")
+        interface=util.IdentityInterface(fields=["mesh_file", "diff_V1", "cond_V1", "fa_t1_space", "mean_conductivity"]), name="outputnode")
 
     conform_T1 = pe.Node(interface=fs.MRIConvert(), name='conform_T1')
     conform_T1.inputs.conform = True
@@ -358,8 +364,14 @@ def create_conductivity_tensor_mesh_workflow(name="add_conductivity"):
     dtifit = pe.Node(interface=fsl.DTIFit(), name='dtifit')
     dtifit.inputs.save_tensor = True
 
+    threshold_FA = pe.Node(interface=fsl.ImageMaths(), name='threshold_FA')
+    threshold_FA.inputs.op_string = '-thr 0.2 -uthr 0.99'
+
     affine_register = pe.Node(interface=fsl.FLIRT(), name='affine_register')
-    affine_register.inputs.cost = ('normmi')
+    affine_register.inputs.dof = 6
+    #affine_register.inputs.cost = ('normmi')
+
+    transform_FA = pe.Node(interface=fsl.ApplyXfm(), name='transform_FA')
 
     register_tensor = pe.Node(interface=fsl.VecReg(), name='register_tensor')
 
@@ -413,8 +425,16 @@ def create_conductivity_tensor_mesh_workflow(name="add_conductivity"):
 
     workflow.connect([(inputnode, conform_T1, [('struct', 'in_file')])])
     workflow.connect([(conform_T1, bet_T1, [('out_file', 'in_file')])])
-    workflow.connect([(bet_T1, affine_register, [('out_file', 'reference')])])
-    workflow.connect([(dtifit, affine_register, [('FA', 'in_file')])])
+    workflow.connect([(bet_T1, fast_segment, [("out_file", "in_files")])])
+    workflow.connect([(fast_segment, affine_register, [(('tissue_class_files', select_WM), 'reference')])])
+
+    workflow.connect([(dtifit, threshold_FA, [('FA', 'in_file')])])
+    workflow.connect([(threshold_FA, affine_register, [('out_file', 'in_file')])])
+
+    workflow.connect([(affine_register, transform_FA, [('out_matrix_file', 'in_matrix_file')])])
+    workflow.connect([(dtifit, transform_FA, [('FA', 'in_file')])])
+    workflow.connect([(fast_segment, transform_FA, [(('tissue_class_files', select_WM), 'reference')])])
+
     workflow.connect([(dtifit, register_tensor, [('tensor', 'in_file')])])    
     workflow.connect([(bet_T1, register_tensor, [('out_file', 'ref_vol')])])
     workflow.connect([(affine_register, concat_affine_xform, [('out_matrix_file', 'in_file')])])
@@ -422,7 +442,7 @@ def create_conductivity_tensor_mesh_workflow(name="add_conductivity"):
     workflow.connect([(affine_register, register_tensor, [('out_matrix_file', 'affine_mat')])])
     workflow.connect([(register_tensor, decompose_tensor, [('out_file', 'in_file')])])
 
-    workflow.connect([(bet_T1, fast_segment, [("out_file", "in_files")])])
+    
 
     workflow.connect(
         [(fast_segment, scale_factor_workflow, [("tissue_class_files", "inputnode.tissue_class_files")])])
@@ -464,4 +484,6 @@ def create_conductivity_tensor_mesh_workflow(name="add_conductivity"):
         [(decompose_conductivity, outputnode, [("V1", "cond_V1")])])
     workflow.connect(
         [(decompose_conductivity, outputnode, [("MD", "mean_conductivity")])])
+    workflow.connect(
+        [(transform_FA, outputnode, [("out_file", "fa_t1_space")])])
     return workflow

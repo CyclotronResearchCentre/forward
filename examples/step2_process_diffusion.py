@@ -58,9 +58,17 @@ dti_proc.connect([(preproc, datasink, [("outputnode.mesh_file", "mesh_file")])])
 dti_proc.connect([(preproc, datasink, [("outputnode.diff_V1", "diff_tensor")])])
 dti_proc.connect([(preproc, datasink, [("outputnode.cond_V1", "cond_tensor")])])
 dti_proc.connect([(preproc, datasink, [("outputnode.mean_conductivity", "mean_conductivity")])])
+dti_proc.connect([(preproc, datasink, [("outputnode.fa_t1_space", "fa_t1_space")])])
 dti_proc.connect([(infosource, datasink, [("subject_id", "subject_id")])])
 
 if __name__ == '__main__':
     dti_proc.write_graph()
+
+    import time
+    start = time.time()
     dti_proc.run()
+    end = time.time()
+    print(start)
+    print(end)
+    print(end-start)
     #dti_proc.run(plugin='MultiProc', plugin_args={'n_procs' : 4})
