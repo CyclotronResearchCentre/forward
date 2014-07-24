@@ -234,7 +234,7 @@ def include_gmsh_tensor_elements(mesh_file, tensor_file, mask_file, mask_thresho
     max_x, max_y, max_z = np.shape(tensor_data)[0:3]
     halfx, halfy, halfz = np.array((vx*max_x, vy*max_y, vz*max_z))/2.0
 
-    mesh_data = read_mesh(mesh_file, elements_to_consider)
+    mesh_data, _, _, _ = read_mesh(mesh_file, elements_to_consider)
 
     # Create the output mesh file
     path, name, ext = split_filename(mesh_file)
