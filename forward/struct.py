@@ -18,6 +18,41 @@ iflogger = logging.getLogger('interface')
 
 fsl.FSLCommand.set_default_output_type('NIFTI')
 
+
+def get_skin_mask_fn(skin_raw, skull_large, t1_file):
+    '''
+    Returns the largest slice index in the z-direction of non-zero voxels
+    Used specifically for skin mask generation from T1-weighted ImageStats
+    '''
+    import subprocess
+    try:
+        proc =  subprocess.Popen(["fslstats", skin_raw, "-w"], stdout=subprocess.PIPE)
+    except OSError:
+        raise Exception("fslstats command was not found. Make sure FSL is installed \
+                         and added to the PATH variable.")
+    output = proc.stdout.read()
+    out_list = output.split()
+    # Top slice index = Minimum in z-direction + size in z-direction - 1
+    out_slice_idx = out_list[4] + out_list[5] - 1
+
+    # fslmaths $TMP_DIR/T1_conform -mul $TMP_DIR/skin_raw.nii.gz -roi 0 256 0 256 $w 1 0 1 $TMP_DIR/skin_top_slice.nii.gz
+    skin_top_slice = fsl.MultiImageMaths()
+    skin_top_slice.inputs.op_string = "-mul %s " + "-roi 0 256 0 256 %d 1 0 1" % out_slice_idx
+    skin_top_slice.inputs.out_file = out_skin_top_slice
+
+    # get mean intensity in top slice of T1_conform
+    proc =  subprocess.Popen(["fslstats", in_file, "-M"], stdout=subprocess.PIPE)
+    output = proc.stdout.read()
+    out_list = output.split()
+    skin_threshold = out_list[0]
+
+    # fslmaths $TMP_DIR/T1_conform -s 1 -thr $skin_threshold -add $TMP_DIR/skin_raw.nii.gz -add $TMP_DIR/skull_large.nii.gz -bin $TMP_DIR/skin_raw.nii.gz
+    skin_mask_from_T1 = fsl.MultiImageMaths()
+    skin_mask_from_T1.inputs.op_string = "-s 1 -thr %f" % skin_threshold + "-add %s -add %s -bin" % (skin_raw, skull_large)
+    skin_mask_from_T1.inputs.out_file = out_skin_mask
+    return out_skin_mask, out_skin_top_slice, skin_threshold, out_slice_idx
+
+
 def image_to_fsl_space(name):
     inputnode = pe.Node(
         interface=util.IdentityInterface(fields=["in_file", "reference", "conformed_T1"]), name="inputnode")
@@ -1089,7 +1124,7 @@ def skull_workflow(name, include_t2=False):
         interface=util.IdentityInterface(fields=inputfields), name="inputnode")
 
     outputnode = pe.Node(
-        interface=util.IdentityInterface(fields=["skull_volume", "skull_surface"]), name="outputnode")
+        interface=util.IdentityInterface(fields=["skull_volume", "skull_surface", "outskin_mask_file"]), name="outputnode")
 
     create_skullmask = pe.Node(
         interface=fsl.BETSurface(), name='create_skullmask')
@@ -1164,6 +1199,8 @@ def skull_workflow(name, include_t2=False):
         [(skull_stl_floodfill_workflow, outputnode, [("outputnode.stl_mesh", "skull_surface")])])
     workflow.connect(
         [(skull_stl_floodfill_workflow, outputnode, [("outputnode.filled_fsl_space", "skull_volume")])])
+    workflow.connect(
+        [(create_skullmask, outputnode, [("outskin_mask_file", "outskin_mask_file")])])
     return workflow
 '''
 End of Skull workflow
@@ -1175,54 +1212,28 @@ Skin workflow
 '''
 
 
-def skin_workflow(name, include_t1=False):
-    inputfields = ["t1fs_fsl_space", "Conform2MNI",
+def skin_workflow(name):
+    inputfields = ["t1_fsl_space", "Conform2MNI", "outskin_mask_file",
                 "skull_volume", "skull_surface","NU_bet_meshfile"]
-    if include_t1:
-        inputfields.append("t1_fsl_space")
-        d = 0
-        # get top slice of skin mask
-        # w=$(( `fslstats $TMP_DIR/skin_raw.nii.gz -w | awk '{print $5}'` + `fslstats $TMP_DIR/skin_raw.nii.gz -w | awk '{print $6}'` - 1 ))
 
-        # create better skin mask based on T1_conform (including volume decoupling from skull)
+    # create better skin mask based on T1_conform (including volume decoupling from skull)
+    get_skin_mask_interface = util.Function(
+        input_names=["skin_raw", "skull_large", "t1_file"],
+        output_names=["out_skin_mask", "out_skin_top_slice", "skin_threshold", "out_slice_idx"], function=get_skin_mask_fn)
 
-        # fslmaths $TMP_DIR/T1_conform -mul $TMP_DIR/skin_raw.nii.gz -roi 0 256 0 256 $w 1 0 1 $TMP_DIR/skin_top_slice.nii.gz
-        skin_top_slice = pe.Node(
-            interface=fsl.MultiImageMaths(), name="skin_outside_skull")
-        skin_top_slice.inputs.op_string = "-mul %s -roi 0 256 0 256 %d 1 0 1"
+    get_skin_mask = pe.Node(
+        interface=get_skin_mask_interface, name="get_skin_mask")
 
-        # get mean intensity in top slice of T1_conform
-        
-        # skin_threshold=`fslstats $TMP_DIR/skin_top_slice.nii.gz -M`        
-        skin_threshold = pe.Node(
-            interface=fsl.ImageStats(), name="skin_threshold")
-        skin_threshold.op_string = "-M"
-
-        # fslmaths $TMP_DIR/T1_conform -s 1 -thr $skin_threshold -add $TMP_DIR/skin_raw.nii.gz -add $TMP_DIR/skull_large.nii.gz -bin $TMP_DIR/skin_raw.nii.gz
-        skin_mask_from_T1 = pe.Node(
-            interface=fsl.MultiImageMaths(), name="skin_outside_skull")
-        skin_mask_from_T1.inputs.op_string = "-s 1 -thr %f -add %s -add %s -bin"
 
     inputnode = pe.Node(
         interface=util.IdentityInterface(fields=inputfields), name="inputnode")
     outputnode = pe.Node(
         interface=util.IdentityInterface(fields=["skin_surface", "skin_volume"]), name="outputnode")
 
-    create_skin_mask = pe.Node(
-        interface=fsl.BETSurface(), name='create_skin_mask')
-    create_skin_mask.inputs.mask = True
-    create_skin_mask.inputs.outline = True
-    create_skin_mask.inputs.t1_only = True
-
     # create enlarged csf volume and add it to enlarged gm volume
     create_enlarged_skull = pe.Node(
         interface=fsl.ImageMaths(), name="create_enlarged_skull")
     create_enlarged_skull.inputs.op_string = "-dilM -bin"
-
-    # ensure that skin mask is fully outside csf_large (volume decoupling)
-    skin_outside_skull = pe.Node(
-        interface=fsl.MultiImageMaths(), name="skin_outside_skull")
-    skin_outside_skull.inputs.op_string = "-add %s -bin"
 
     n_vertices = 60000
     skin_tess = create_tess_constrain_smooth_wf("skin_tess")
@@ -1244,20 +1255,17 @@ def skin_workflow(name, include_t1=False):
 
     workflow = pe.Workflow(name=name + '_workflow')
     workflow.connect(
-        [(inputnode, create_skin_mask, [("Conform2MNI", "t1_to_standard_matrix")])])
-    workflow.connect(
-        [(inputnode, create_skin_mask, [("t1fs_fsl_space", "t1_file")])])
-    workflow.connect(
-        [(inputnode, create_skin_mask, [("NU_bet_meshfile", "meshfile")])])
-    workflow.connect(
         [(inputnode, create_enlarged_skull, [("skull_volume", "in_file")])])
-    workflow.connect(
-        [(create_skin_mask, skin_outside_skull, [("outskin_mask_file", "in_file")])])
 
     workflow.connect(
-        [(create_enlarged_skull, skin_outside_skull, [("out_file", "operand_files")])])
+        [(inputnode, get_skin_mask, [("t1_fsl_space", "t1_file")])])
     workflow.connect(
-        [(skin_outside_skull, skin_tess, [("out_file", "inputnode.in_file")])])
+        [(inputnode, get_skin_mask, [("outskin_mask_file", "skin_raw")])])
+    workflow.connect(
+        [(create_enlarged_skull, get_skin_mask, [("out_file", "skull_large")])])
+    workflow.connect(
+        [(get_skin_mask, skin_tess, [("out_skin_mask", "inputnode.in_file")])])
+
     workflow.connect(
         [(skin_tess, decouple_skin_from_skull, [("outputnode.out_file", "outer_mesh")])])
     workflow.connect(
@@ -1308,7 +1316,7 @@ def create_structural_mesh_workflow(name="structural_mesh", include_t1=False, in
     cerebellum_wf = cerebellum_workflow("cerebellum")
     cerebrospinal_fluid_wf = cerebrospinal_fluid_workflow("cerebrospinal_fluid", include_t2fs)
     skull_wf = skull_workflow("skull", include_t2)
-    skin_wf = skin_workflow("skin", include_t1)
+    skin_wf = skin_workflow("skin")
 
     create_volume_mesh_script_interface = util.Function(input_names=["subject_id", "gm", "wm", "csf","skull", "skin", "cerebellum", "ventricles"],
                                            output_names=["out_file"], function=volume_mesh_fn)
@@ -1373,8 +1381,8 @@ def create_structural_mesh_workflow(name="structural_mesh", include_t1=False, in
         workflow.connect(
             [(prep_t2, skull_wf, [("outputnode.out_file", "inputnode.t2_fsl_space")])])
 
-    # Skin workflow can use T1
-    if include_t2:
+    # Skin workflow can use T1 instead of fat-suppressed T1
+    if include_t1:
         prep_t1 = image_to_fsl_space("prep_t1")
         workflow.connect(
             [(inputnode, prep_t1, [("t1_file", "inputnode.in_file")])])
