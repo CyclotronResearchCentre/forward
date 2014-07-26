@@ -21,7 +21,7 @@ electrode_location_file = op.join(os.environ["FWD_DIR"], "etc", "icosahedron42.t
 Create the nodes and forward modelling workflow
 '''
 create_sphere_model_interface = util.Function(input_names=["electrode_location_file", "radii", "out_file"],
-                                       output_names=["mesh_file", "electrode_name_file", "electrode_location_file"], function=create_4_shell_model)
+                                       output_names=["mesh_file", "electrode_name_file", "electrode_location_file", "mesh_without_electrodes"], function=create_4_shell_model)
 
 create_sphere_model = pe.Node(interface=create_sphere_model_interface, name="create_sphere_model")
 create_sphere_model.inputs.radii = radii
@@ -54,5 +54,5 @@ sphere_proc.connect([(fwd, datasink, [("outputnode.leadfield", "leadfield")])])
 
 if __name__ == '__main__':
     sphere_proc.write_graph(graph2use="exec")
-    #sphere_proc.run()
-    sphere_proc.run(plugin='MultiProc', plugin_args={'n_procs' : 4})
+    sphere_proc.run()
+    #sphere_proc.run(plugin='MultiProc', plugin_args={'n_procs' : 4})

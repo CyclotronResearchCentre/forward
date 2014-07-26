@@ -289,7 +289,7 @@ def compare_leadfields(leadfield1, leadfield2, mesh_file):
     # Electric field elements are only saved in the gray matter
     #elements_to_consider = [1001] #For Sphere
     elements_to_consider = [1002] #For head models
-    mesh_data = read_mesh(mesh_file, elements_to_consider)
+    mesh_data, _, _, _ = read_mesh(mesh_file, elements_to_consider)
 
     # Create the output mesh file
     path, name, ext = split_filename(mesh_file)

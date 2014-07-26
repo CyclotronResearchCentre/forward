@@ -15,7 +15,7 @@ res = np.load("SphereResults.npy")
 radii=[85,88,92,100]
 max_r = np.max(radii)
 
-rdm = True
+rdm = False
 mags = True
 
 if rdm:
@@ -34,7 +34,7 @@ if rdm:
     ax.set_autoscale_on(False)
     plt.savefig("RDMs.pdf")
 
-close("all")
+#close("all")
 
 if mags:
     # Plot MAGs
@@ -54,4 +54,4 @@ if mags:
     ax.set_autoscale_on(False)
     plt.savefig("MAGs.pdf")
 
-close("all")
+#close("all")
