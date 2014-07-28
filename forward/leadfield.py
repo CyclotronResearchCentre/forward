@@ -250,7 +250,7 @@ def create_forward_model_workflow(name, conductivity_tensor_included=False):
         [(create_leadfield, outputnode, [("leadfield_matrix_file", "leadfield")])])
     return workflow
 
-def compare_leadfields(leadfield1, leadfield2, mesh_file):
+def compare_leadfields(leadfield1, leadfield2, mesh_file, write_mesh=True):
     '''
     Compares two leadfield matrices and outputs the difference as
     scalars attached to a mesh file. The mesh file must have the 
@@ -286,23 +286,37 @@ def compare_leadfields(leadfield1, leadfield2, mesh_file):
     lf2_data = lf2_data_file.get(data_name)
     leadfield_matrix2 = lf2_data.value
 
-    # Electric field elements are only saved in the gray matter
-    #elements_to_consider = [1001] #For Sphere
-    elements_to_consider = [1002] #For head models
-    mesh_data, _, _, _ = read_mesh(mesh_file, elements_to_consider)
 
-    # Create the output mesh file
     path, name, ext = split_filename(mesh_file)
-    rms_mesh_file = op.abspath(name + "_rmse.msh")
 
-    iflogger.info('Copying current mesh file to %s' % rms_mesh_file)
-    shutil.copyfile(mesh_file, rms_mesh_file)
+    if write_mesh:
+        # Electric field elements are only saved in the gray matter
+        #elements_to_consider = [1001] #For Sphere
+        elements_to_consider = [1002] #For head models
+        mesh_data, _, _, _ = read_mesh(mesh_file, elements_to_consider)
+        # Create the output mesh file
+        rms_mesh_file = op.abspath(name + "_rmse.msh")
+        iflogger.info('Copying current mesh file to %s' % rms_mesh_file)
+        shutil.copyfile(mesh_file, rms_mesh_file)
+        f = open(rms_mesh_file,'a') #Append to the end of the file
+        iflogger.info('Appending root mean squared error scalars to %s' % rms_mesh_file)
+    else:
+        rms_mesh_file = None
 
-    f = open(rms_mesh_file,'a') #Append to the end of the file
-    iflogger.info('Appending root mean squared error scalars to %s' % rms_mesh_file)
+    out_rms_hdf5_file_x = op.abspath(name + "_rmse_x.hdf5")
+    out_rms_hdf5_file_y = op.abspath(name + "_rmse_y.hdf5")
+    out_rms_hdf5_file_z = op.abspath(name + "_rmse_z.hdf5")
+    out_rms_hdf5_file_avg = op.abspath(name + "_rmse_avg.hdf5")
+
+    rms_hdf5_file_x = h5py.File(out_rms_hdf5_file_x, "w")
+    rms_hdf5_file_y = h5py.File(out_rms_hdf5_file_y, "w")
+    rms_hdf5_file_z = h5py.File(out_rms_hdf5_file_z, "w")
+    rms_hdf5_file_avg = h5py.File(out_rms_hdf5_file_avg, "w")
+
 
     # Write the tag information to the file:
-    num_polygons = len(mesh_data)
+    if write_mesh:
+        num_polygons = len(mesh_data)
     _, name1, _ = split_filename(leadfield1)
     _, name2, _ = split_filename(leadfield2)
 
@@ -316,11 +330,15 @@ def compare_leadfields(leadfield1, leadfield2, mesh_file):
 
     #Check that the dimensions are appropriate
     try:
-        assert(len(mesh_data) == leadfield_mesh1.shape[0] == leadfield_mesh2.shape[0])
+        if write_mesh:
+            assert(len(mesh_data) == leadfield_mesh1.shape[0] == leadfield_mesh2.shape[0])
+        else:
+            assert(leadfield_mesh1.shape[0] == leadfield_mesh2.shape[0])
     except AssertionError:
         iflogger.error("Lead fields could not be compared because the " \
             "number of elements in the files do not match")
-        iflogger.error("Elements in %s: %d" % (mesh_file, len(mesh_data)))
+        if write_mesh:
+            iflogger.error("Elements in %s: %d" % (mesh_file, len(mesh_data)))
         iflogger.error("Elements in leadfield 1 %s: %d" % (leadfield1, leadfield_mesh1.shape[0]))
         iflogger.error("Elements in leadfield 2 %s: %d" % (leadfield2, leadfield_mesh2.shape[0]))
         raise Exception
@@ -344,92 +362,113 @@ def compare_leadfields(leadfield1, leadfield2, mesh_file):
     rmse = (rmse_x + rmse_y + rmse_z) / 3.
     assert(leadfield_mesh2.shape[0] == rmse.shape[0])
 
-    rmse_avg_list = []
-    rmse_x_list = []
-    rmse_y_list = []
-    rmse_z_list = []
-    for idx, poly in enumerate(mesh_data):
-        rmse_avg_str = ('%d %e \n' % (poly["element_id"], rmse[idx]))
-        rmse_avg_list.append(rmse_avg_str)
-        rmse_x_str = ('%d %e \n' % (poly["element_id"], rmse_x[idx]))
-        rmse_x_list.append(rmse_x_str)
-        rmse_y_str = ('%d %e \n' % (poly["element_id"], rmse_y[idx]))
-        rmse_y_list.append(rmse_y_str)
-        rmse_z_str  = ('%d %e \n' % (poly["element_id"], rmse_z[idx]))        
-        rmse_z_list.append(rmse_z_str)
-        iflogger.info("%3.3f%%" % (float(idx)/num_polygons*100.0))
+    if write_mesh:
+        rmse_avg_list = []
+        rmse_x_list = []
+        rmse_y_list = []
+        rmse_z_list = []
+        for idx, poly in enumerate(mesh_data):
+            rmse_avg_str = ('%d %e \n' % (poly["element_id"], rmse[idx]))
+            rmse_avg_list.append(rmse_avg_str)
+            rmse_x_str = ('%d %e \n' % (poly["element_id"], rmse_x[idx]))
+            rmse_x_list.append(rmse_x_str)
+            rmse_y_str = ('%d %e \n' % (poly["element_id"], rmse_y[idx]))
+            rmse_y_list.append(rmse_y_str)
+            rmse_z_str  = ('%d %e \n' % (poly["element_id"], rmse_z[idx]))        
+            rmse_z_list.append(rmse_z_str)
+            iflogger.info("%3.3f%%" % (float(idx)/num_polygons*100.0))
 
 
-    # ----- Average RMSE ----- #
-    f.write('$ElementData\n')
-    str_tag = '"Average Root Mean Squared Error"'
-    timestep = 0.0001
-    f.write('1\n') #Num String tags
-    f.write(str_tag + '\n')
-    f.write('1\n') #Num Real tags
-    f.write('%f\n' % timestep)
-    #Three integer tags: timestep, num field components, num elements
-    f.write('3\n') #Three int tags
-    f.write('0\n') #Time step index
-    f.write('1\n') #Num field components
-    f.write('%d\n' % len(mesh_data)) #Num nonzero field components
-    for elementdata_str in rmse_avg_list:
-        f.write(elementdata_str)
-    f.write('$EndElementData\n')
+        # ----- Average RMSE ----- #
+        f.write('$ElementData\n')
+        str_tag = '"Average Root Mean Squared Error"'
+        timestep = 0.0001
+        f.write('1\n') #Num String tags
+        f.write(str_tag + '\n')
+        f.write('1\n') #Num Real tags
+        f.write('%f\n' % timestep)
+        #Three integer tags: timestep, num field components, num elements
+        f.write('3\n') #Three int tags
+        f.write('0\n') #Time step index
+        f.write('1\n') #Num field components
+        f.write('%d\n' % len(mesh_data)) #Num nonzero field components
+        for elementdata_str in rmse_avg_list:
+            f.write(elementdata_str)
+        f.write('$EndElementData\n')
 
 
-    # ----- RMSE X ----- #
-    f.write('$ElementData\n')
-    str_tag = '"Root Mean Squared Error X-direction"'
-    timestep = 0.0002
-    f.write('1\n') #Num String tags
-    f.write(str_tag + '\n')
-    f.write('1\n') #Num Real tags
-    f.write('%f\n' % timestep)
-    #Three integer tags: timestep, num field components, num elements
-    f.write('3\n') #Three int tags
-    f.write('0\n') #Time step index
-    f.write('1\n') #Num field components
-    f.write('%d\n' % len(mesh_data)) #Num nonzero field components
-    for elementdata_str in rmse_x_list:
-        f.write(elementdata_str)
-    f.write('$EndElementData\n')
+        # ----- RMSE X ----- #
+        f.write('$ElementData\n')
+        str_tag = '"Root Mean Squared Error X-direction"'
+        timestep = 0.0002
+        f.write('1\n') #Num String tags
+        f.write(str_tag + '\n')
+        f.write('1\n') #Num Real tags
+        f.write('%f\n' % timestep)
+        #Three integer tags: timestep, num field components, num elements
+        f.write('3\n') #Three int tags
+        f.write('0\n') #Time step index
+        f.write('1\n') #Num field components
+        f.write('%d\n' % len(mesh_data)) #Num nonzero field components
+        for elementdata_str in rmse_x_list:
+            f.write(elementdata_str)
+        f.write('$EndElementData\n')
 
-    # ----- RMSE X ----- #
-    f.write('$ElementData\n')
-    str_tag = '"Root Mean Squared Error Y-direction"'
-    timestep = 0.0003
-    f.write('1\n') #Num String tags
-    f.write(str_tag + '\n')
-    f.write('1\n') #Num Real tags
-    f.write('%f\n' % timestep)
-    #Three integer tags: timestep, num field components, num elements
-    f.write('3\n') #Three int tags
-    f.write('0\n') #Time step index
-    f.write('1\n') #Num field components
-    f.write('%d\n' % len(mesh_data)) #Num nonzero field components
-    for elementdata_str in rmse_y_list:
-        f.write(elementdata_str)
-    f.write('$EndElementData\n')
+        # ----- RMSE X ----- #
+        f.write('$ElementData\n')
+        str_tag = '"Root Mean Squared Error Y-direction"'
+        timestep = 0.0003
+        f.write('1\n') #Num String tags
+        f.write(str_tag + '\n')
+        f.write('1\n') #Num Real tags
+        f.write('%f\n' % timestep)
+        #Three integer tags: timestep, num field components, num elements
+        f.write('3\n') #Three int tags
+        f.write('0\n') #Time step index
+        f.write('1\n') #Num field components
+        f.write('%d\n' % len(mesh_data)) #Num nonzero field components
+        for elementdata_str in rmse_y_list:
+            f.write(elementdata_str)
+        f.write('$EndElementData\n')
 
-    # ----- RMSE X ----- #
-    f.write('$ElementData\n')
-    str_tag = '"Root Mean Squared Error Z-direction"'
-    timestep = 0.0004
-    f.write('1\n') #Num String tags
-    f.write(str_tag + '\n')
-    f.write('1\n') #Num Real tags
-    f.write('%f\n' % timestep)
-    #Three integer tags: timestep, num field components, num elements
-    f.write('3\n') #Three int tags
-    f.write('0\n') #Time step index
-    f.write('1\n') #Num field components
-    f.write('%d\n' % len(mesh_data)) #Num nonzero field components
-    for elementdata_str in rmse_z_list:
-        f.write(elementdata_str)
-    f.write('$EndElementData\n')
+        # ----- RMSE X ----- #
+        f.write('$ElementData\n')
+        str_tag = '"Root Mean Squared Error Z-direction"'
+        timestep = 0.0004
+        f.write('1\n') #Num String tags
+        f.write(str_tag + '\n')
+        f.write('1\n') #Num Real tags
+        f.write('%f\n' % timestep)
+        #Three integer tags: timestep, num field components, num elements
+        f.write('3\n') #Three int tags
+        f.write('0\n') #Time step index
+        f.write('1\n') #Num field components
+        f.write('%d\n' % len(mesh_data)) #Num nonzero field components
+        for elementdata_str in rmse_z_list:
+            f.write(elementdata_str)
+        f.write('$EndElementData\n')
 
-    f.close()
+        f.close()
 
-    iflogger.info("Finished writing to %s" % rms_mesh_file)
-    return rms_mesh_file
+        iflogger.info("Finished writing to %s" % rms_mesh_file)
+
+    ## Save RMSE data to an HDF5 file
+    dset_x = rms_hdf5_file_x.create_dataset("rmse_x", data=rmse_x)
+    dset_x[...] = rmse_x
+    dset_y = rms_hdf5_file_y.create_dataset("rmse_y", data=rmse_y)
+    dset_y[...] = rmse_y
+    dset_z = rms_hdf5_file_z.create_dataset("rmse_z", data=rmse_z)
+    dset_z[...] = rmse_z
+    dset = rms_hdf5_file_avg.create_dataset("rmse_avg", data=rmse)
+    dset[...] = rmse
+
+    rms_hdf5_file_x.close()
+    rms_hdf5_file_y.close()
+    rms_hdf5_file_z.close()
+    rms_hdf5_file_avg.close()
+    print("Saved RMSE-X matrix as %s" % out_rms_hdf5_file_x)
+    print("Saved RMSE-Y matrix as %s" % out_rms_hdf5_file_y)
+    print("Saved RMSE-Z matrix as %s" % out_rms_hdf5_file_z)
+    print("Saved RMSE-Avg matrix as %s" % out_rms_hdf5_file_avg)
+    ###
+    return rms_mesh_file, out_rms_hdf5_file_avg, out_rms_hdf5_file_x, out_rms_hdf5_file_y, out_rms_hdf5_file_z

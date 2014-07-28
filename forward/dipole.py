@@ -51,7 +51,7 @@ def cost_function_mapping(potential, leadfield, mesh_file, mesh_id):
 
 
     # ---- Resave the mesh with the cost function as element data ---- #
-    mesh_data = read_mesh(mesh_file, [mesh_id])
+    mesh_data, _, _, _ = read_mesh(mesh_file, [mesh_id])
 
     # Create the output mesh file
     path, name, ext = split_filename(mesh_file)
