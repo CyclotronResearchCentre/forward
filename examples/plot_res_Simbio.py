@@ -17,8 +17,8 @@ max_r = np.max(radii)
 bound = 82 # min(radii)
 step = 4
 
-rdm = False
-mags = True
+rdm = True
+mags = False
 
 resSimbio = np.load("SimBioRDM_MAG.npy")
 
@@ -56,7 +56,7 @@ if mags:
     legend(bbox_to_anchor=(0., 1.02, 1., .102), loc=3,
             ncol=2, mode="expand", borderaxespad=0.)
     show()
-    plt.axis([10, 105, 0.5, 1.2])
+    plt.axis([10, 105, 0.6, 1.3])
     ax = plt.gca()
     ax.set_autoscale_on(False)
     plt.savefig("MAGs.pdf")

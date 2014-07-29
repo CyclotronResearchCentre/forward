@@ -150,11 +150,10 @@ def create_4_shell_model(electrode_location_file=None, radii=[85, 88, 92, 100], 
 
     mesh_without_electrodes = merge_and_diff([brain_msh, csf_msh, skull_msh, skin_msh],
                                ids_outside_inward=[4, 3, 2, 1], out_file=out_file)
-
     if electrode_location_file is not None:
         mesh_file, electrode_name_file, electrode_location_file = add_sensors(
             electrode_location_file, mesh_without_electrodes, radii)
         return mesh_file, electrode_name_file, electrode_location_file, mesh_without_electrodes
     else:
-        return mesh_without_electrodes
+        return mesh_without_electrodes, None, None, None
 

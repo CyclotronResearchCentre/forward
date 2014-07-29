@@ -59,7 +59,7 @@ def rewrite_mesh_from_binary_mask(mask_file, mesh_file, mesh_id, new_phys_id=101
     max_x, max_y, max_z = np.shape(mask_data)[0:3]
     halfx, halfy, halfz = np.array((vx*max_x, vy*max_y, vz*max_z))/2.0
 
-    mesh_data = read_mesh(mesh_file, elements_to_consider)
+    mesh_data, _, _, _ = read_mesh(mesh_file, elements_to_consider)
 
     elem_list = []
     for idx, poly in enumerate(mesh_data):

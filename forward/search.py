@@ -64,7 +64,7 @@ def single_dipole_search(electrode_potential, leadfield, mesh_file, elements_to_
     _, lf_name, _ = split_filename(leadfield)
 
     bounds = (0,leadfield_matrix.shape[0]/3)
-    mesh_data = read_mesh(mesh_file, elements_to_consider)
+    mesh_data, _, _, _ = read_mesh(mesh_file, elements_to_consider)
 
     centroids = []
     element_ids = []
