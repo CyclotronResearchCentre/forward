@@ -40,11 +40,12 @@ def calculate_rdm_and_mags(lf_test, radii, cond, probe_dipole=[0,0,70], n=42, gr
     openmeeg_solution = op.join(out_directory, "four", "openmeeg.txt")
     if op.exists(openmeeg_solution):
         lf_openmeeg = np.loadtxt(openmeeg_solution, delimiter=",")
-        lf_openmeeg = rereference(lf_openmeeg, ground_idx)
-        lf_openmeeg = lf_openmeeg[:,2]
+        if not np.isnan(lf_openmeeg.all()):
+            lf_openmeeg = rereference(lf_openmeeg, ground_idx)
+            lf_openmeeg = lf_openmeeg[:,2]
 
-        rdm_OMEEG = norm( lf_openmeeg / norm(lf_openmeeg) - lf_sphere / norm(lf_sphere) )
-        mag_OMEEG = np.divide(norm(lf_openmeeg), norm(lf_sphere))
+            rdm_OMEEG = norm( lf_openmeeg / norm(lf_openmeeg) - lf_sphere / norm(lf_sphere) )
+            mag_OMEEG = np.divide(norm(lf_openmeeg), norm(lf_sphere))
 
     lf_test = rereference(lf_test, ground_idx)
     #ipdb.set_trace()
@@ -59,6 +60,9 @@ def calculate_rdm_and_mags(lf_test, radii, cond, probe_dipole=[0,0,70], n=42, gr
 import scipy.io as sio
 data = sio.loadmat("SimbioResults.mat")
 data = data['d']
+
+# To prevent errors from OpenM/EEG
+data = data[0:85,:]
 
 # To fix units
 data = data / 1000 
