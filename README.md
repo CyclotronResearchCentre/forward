@@ -8,7 +8,8 @@ At present these pipelines depend on interfaces for [Gmsh](http://geuz.org/gmsh/
 
 A paper describing the tool has been accepted for publication in NeuroImage:  
 E. Ziegler, S.L. Chellappa, G. Gaggioni, J.Q.M. Ly, G. Vandewalle, E. André, C. Geuzaine, C. Phillips, A finite-element reciprocity solution for EEG forward modeling with realistic individual head models. NeuroImage, in press, 2014.  
-http://www.sciencedirect.com/science/article/pii/S1053811914007307
+Direct link: http://www.sciencedirect.com/science/article/pii/S1053811914007307  
+Permalink : http://hdl.handle.net/2268/171896
 
 # Install
 
