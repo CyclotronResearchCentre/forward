@@ -6,6 +6,10 @@ It builds off of the seminal [SimNIBS](http://simnibs.org/) tool the field model
 
 At present these pipelines depend on interfaces for [Gmsh](http://geuz.org/gmsh/) and [Meshfix](https://code.google.com/p/meshfix/) that can only be found in the enh/conductivity branch of my fork of [Nipype](https://github.com/swederik/nipype). 
 
+A paper describing the tool has been accepted for publication in NeuroImage:  
+E. Ziegler, S.L. Chellappa, G. Gaggioni, J.Q.M. Ly, G. Vandewalle, E. André, C. Geuzaine, C. Phillips, A finite-element reciprocity solution for EEG forward modeling with realistic individual head models. NeuroImage, in press, 2014.  
+http://www.sciencedirect.com/science/article/pii/S1053811914007307
+
 # Install
 
 To install the package, run:
