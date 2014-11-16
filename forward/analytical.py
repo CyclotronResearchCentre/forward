@@ -1,16 +1,20 @@
+import os
 import os.path as op
 from nipype.interfaces.base import File, Directory, traits
 from nipype.interfaces.matlab import MatlabCommand, MatlabInputSpec
 
 
 class FourShellAnalyticalModelInputSpec(MatlabInputSpec):
-    probe_dipole = traits.List(
+    probe_dipole_location = traits.List(
         traits.Float, exists=True, minlen=3, maxlen=3, mandatory=True)
+    probe_dipole_orientation = traits.List([0,0,1],
+        traits.Float, exists=True, minlen=3, maxlen=3, usedefault=True, mandatory=True)
     sphere_radii = traits.List(
         traits.Float, exists=True, minlen=4, maxlen=4, mandatory=True)
     shell_conductivity = traits.List(
         traits.Float, exists=True, minlen=4, maxlen=4, mandatory=True)
     icosahedron_sides = traits.Enum([42, 162, 642], mandatory=True)
+    number_of_analytical_terms = traits.Int(60, usedefault=True, mandatory=True)
     fieldtrip_path = Directory(exists=True, desc='Fieldtrip directory')
     out_analytical_file = File('analytical.txt', usedefault=True)
     out_openmeeg_file = File('openmeeg.txt', usedefault=True)
@@ -23,13 +27,8 @@ class FourShellAnalyticalModelOutputSpec(MatlabInputSpec):
 
 class FourShellAnalyticalModel(MatlabCommand):
 
-    """ Basic Hello World that displays Hello <name> in MATLAB
-
-    Returns
-    -------
-
-    matlab_output : capture of matlab output which may be
-                    parsed by user to get computation results
+    """ Runs a four-shell spherical model using OpenMEEG and
+    Fieldtrip's analytical solution
 
     Examples
     --------
@@ -41,23 +40,31 @@ class FourShellAnalyticalModel(MatlabCommand):
 
     def _my_script(self):
 
-        probe_list = [str(i) for i in self.inputs.probe_dipole]
+        probe_location_list = [str(i) for i in self.inputs.probe_dipole_location]
+        probe_orientation_list = [str(i) for i in self.inputs.probe_dipole_orientation]
         radii_list = [str(i) for i in self.inputs.sphere_radii]
         cond_list = [str(i) for i in self.inputs.shell_conductivity]
 
         fieldtrip_path = op.abspath(self.inputs.fieldtrip_path)
-        probe_dipole = "[" + " ".join(probe_list) + ']'
+        private_fwd_path = op.join(os.environ["FWD_DIR"],"etc")
+        probe_dipole_location = "[" + " ".join(probe_location_list) + ']'
+        probe_dipole_orientation = "[" + " ".join(probe_orientation_list) + ']'
         sphere_radii = "[" + " ".join(radii_list) + ']'
         shell_conductivity = "[" + " ".join(cond_list) + ']'
         icosahedron_sides = self.inputs.icosahedron_sides
+        num_terms = int(self.inputs.number_of_analytical_terms)
         out_analytical_file = op.abspath(self.inputs.out_analytical_file)
         out_openmeeg_file = op.abspath(self.inputs.out_openmeeg_file)
 
         script = """
 
     addpath(genpath('%s'));
+    addpath(genpath('%s'));
 
     pos = %s;
+    moment = %s;
+    num_terms = %d;
+
     r = %s;
     c = %s;
     [pnt, tri] = icosahedron%d;
@@ -71,6 +78,7 @@ class FourShellAnalyticalModel(MatlabCommand):
 
     vol_sphere.r = r;
     vol_sphere.cond = c;
+    vol_sphere.t = eeg_leadfield4_prepare(vol_sphere, num_terms);
     lf_sphere = ft_compute_leadfield(pos, sens, vol_sphere);
     dlmwrite('%s', lf_sphere)
 
@@ -89,14 +97,15 @@ class FourShellAnalyticalModel(MatlabCommand):
     vol_bem = vol1;
     cfg.vol = vol_bem;
     cfg.grid.pos = pos;
+    cfg.grid.mom = moment;
     cfg.elec = sens;
 
     grid = ft_prepare_leadfield(cfg);
     lf_openmeeg = grid.leadfield{1};
     dlmwrite('%s', lf_openmeeg)
 
-        """ % (fieldtrip_path, probe_dipole, sphere_radii, shell_conductivity, icosahedron_sides,
-            out_analytical_file, out_openmeeg_file)
+        """ % (fieldtrip_path, private_fwd_path, probe_dipole_location, probe_dipole_orientation, num_terms, 
+            sphere_radii, shell_conductivity, icosahedron_sides, out_analytical_file, out_openmeeg_file)
         return script
 
     def run(self, **inputs):

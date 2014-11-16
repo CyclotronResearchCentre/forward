@@ -42,7 +42,7 @@ electrode_location_file = op.join(
 mesh_id = 1001
 
 
-def get_rdm_and_mags(mesh_file, mesh_id, probe_dipole, radii, cond, n=42):
+def get_rdm_and_mags(mesh_file, mesh_id, probe_dipole, probe_dipole_orientation, radii, cond, n=42, nMax=60):
     four = pe.Node(interface=FourShellAnalyticalModel(), name="four")
     name = str(probe_dipole[0]).replace(" ","")
     name = name.replace('[','')
@@ -51,11 +51,13 @@ def get_rdm_and_mags(mesh_file, mesh_id, probe_dipole, radii, cond, n=42):
     if not op.exists(out_directory):
         os.makedirs(out_directory)
     four.base_dir = out_directory
-    four.inputs.probe_dipole = probe_dipole[0].tolist()
+    four.inputs.probe_dipole_location = probe_dipole[0].tolist()
+    four.inputs.probe_dipole_orientation = probe_dipole_orientation[0].tolist()
     four.inputs.script = "pyscript.m"
     four.inputs.sphere_radii = radii
     four.inputs.shell_conductivity = cond
     four.inputs.icosahedron_sides = n
+    four.inputs.number_of_analytical_terms = nMax
     four.inputs.fieldtrip_path = "/Developer/fieldtrip"
     
     analytical_solution = op.join(out_directory, "four", "analytical.txt")
@@ -66,10 +68,12 @@ def get_rdm_and_mags(mesh_file, mesh_id, probe_dipole, radii, cond, n=42):
     lf_sphere = np.loadtxt(analytical_solution, delimiter=",")
     lf_sphere = lf_sphere - lf_sphere[ground_idx]
     lf_sphere = np.delete(lf_sphere, (ground_idx), axis=0)
-
+    lf_sphere = lf_sphere * probe_dipole_orientation
 
     mesh_data, closest_element_idx, centroid, closest_element_data, lf_idx = get_closest_element_to_point(mesh_file, mesh_id, probe_dipole)
     lf_getdp = np.transpose(leadfield_matrix[lf_idx * 3:lf_idx * 3 + 3])
+
+    lf_getdp = lf_getdp * probe_dipole_orientation
 
     rdms = np.empty((np.shape(lf_getdp)[1], 1))
     rows = np.shape(lf_getdp)[1]
@@ -80,8 +84,7 @@ def get_rdm_and_mags(mesh_file, mesh_id, probe_dipole, radii, cond, n=42):
     mags = np.divide(np.sqrt(np.sum(lf_getdp ** 2, 0)),
                      np.sqrt(np.sum(lf_sphere ** 2, 0)) )
 
-    lf_getdp = lf_getdp[:,2]
-    lf_sphere = lf_sphere[:,2]
+
     rdm_singlevalue = norm( lf_getdp / norm(lf_getdp) - lf_sphere / norm(lf_sphere) )
     mag_singlevalue = np.divide(norm(lf_getdp),norm(lf_sphere))
 
@@ -92,8 +95,8 @@ def get_rdm_and_mags(mesh_file, mesh_id, probe_dipole, radii, cond, n=42):
 
     openmeeg_solution = op.join(out_directory, "four", "openmeeg.txt")
     lf_openmeeg = np.loadtxt(openmeeg_solution, delimiter=",")
-    lf_openmeeg = lf_openmeeg[:,2]
-    
+    lf_openmeeg = lf_openmeeg * probe_dipole_orientation
+
     try:
         lf_openmeeg = lf_openmeeg - lf_openmeeg[ground_idx]
         lf_openmeeg = np.delete(lf_openmeeg, (ground_idx), axis=0)
@@ -120,14 +123,13 @@ n=42
 loop = True
 
 probe_dipole = np.array([[0, 0, 70]])
-(rdms, mags, rdm_sv, mag_sv,
-    rdm_OMEEG, mag_OMEEG, lf_getdp, lf_sphere) = get_rdm_and_mags(mesh_file, mesh_id, probe_dipole, radii, cond, n)
-
+probe_dipole_orientation = np.array([[0, 0, 1]])
+nMax = 200
 
 if loop:
     print("Looping through dipole positions:")
     #distances = [10, 20, 40, 60, 70, 75, 80, 82, 84, 85]
-    distances = range(0,83,1)
+    distances = range(80,83,1)
     #distances = (np.array(distances)/2).tolist()
 
     distances.reverse()
@@ -136,7 +138,7 @@ if loop:
     for idx in distances:
         print(idx)
         probe_dipole = np.array([[0, 0, idx]])
-        rdms, mags, rdm_sv, mag_sv, rdm_OMEEG, mag_OMEEG, lf_getdp, lf_sphere = get_rdm_and_mags(mesh_file, mesh_id, probe_dipole, radii, cond, n)
+        rdms, mags, rdm_sv, mag_sv, rdm_OMEEG, mag_OMEEG, lf_getdp, lf_sphere = get_rdm_and_mags(mesh_file, mesh_id, probe_dipole, probe_dipole_orientation, radii, cond, n, nMax)
         results.append((idx, rdm_sv, mag_sv, rdm_OMEEG, mag_OMEEG))
 
     res = np.array(results)
@@ -171,6 +173,10 @@ if loop:
     plt.axis([0.0, 6, 0, 1])
     ax = plt.gca()
     ax.set_autoscale_on(False)
+
+else:
+    (rdms, mags, rdm_sv, mag_sv, rdm_OMEEG, mag_OMEEG, lf_getdp, lf_sphere) = get_rdm_and_mags(mesh_file, mesh_id, probe_dipole, probe_dipole_orientation, radii, cond, n, nMax)
+
 
 def write_gmsh_pos_file(scalars, electrode_location_file, ground_idx, scalar_name="RDM"):
     out_file = scalar_name + ".pos"
